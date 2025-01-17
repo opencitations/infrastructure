@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mariadb-secret
+  namespace: default
+type: Opaque
+stringData:
+  root-password: "${MARIADB_ROOT_PASSWORD}"
+  user-password: "${MARIADB_USER_PASSWORD}"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mariadb
+  namespace: default
+  labels:
+    app: mariadb
+spec:
+  serviceName: mariadb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mariadb
+  template:
+    metadata:
+      labels:
+        app: mariadb
+    spec:
+      containers:
+        - name: mariadb
+          image: mariadb:10.5
+          ports:
+            - containerPort: 3306
+              name: mariadb
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: root-password
+            - name: MYSQL_DATABASE
+              value: wordpress_db
+            - name: MYSQL_USER
+              value: wp_user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: user-password
+          resources:
+            limits:
+              cpu: 2500m
+              memory: 4Gi
+            requests:
+              cpu: 500m
+              memory: 2000Mi
+          volumeMounts:
+            - name: mariadb-data
+              mountPath: /var/lib/mysql
+              subPath: ${MARIADB_SUBPATH}
+          livenessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: mariadb-data
+          persistentVolumeClaim:
+            claimName: ${STORAGE_PVC}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb
+  namespace: default
+  labels:
+    app: mariadb
+spec:
+  ports:
+    - port: 3306
+      name: mariadb
+      targetPort: 3306
+  selector:
+    app: mariadb
+  clusterIP: None
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${WORDPRESS_SERVICE_NAME}
+  namespace: default
+  labels:
+    app: ${WORDPRESS_SERVICE_NAME}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ${WORDPRESS_SERVICE_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${WORDPRESS_SERVICE_NAME}
+    spec:
+      containers:
+        - name: wordpress
+          image: wordpress:latest
+          ports:
+            - containerPort: 80
+              name: wordpress
+          env:
+            - name: WORDPRESS_DB_HOST
+              value: mariadb
+            - name: WORDPRESS_DB_USER
+              value: wp_user
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: user-password
+            - name: WORDPRESS_DB_NAME
+              value: wordpress_db
+          resources:
+            requests:
+              cpu: 300m
+              memory: 4Gi
+          volumeMounts:
+            - name: wordpress-data
+              mountPath: /var/www/html
+              subPath: ${WORDPRESS_SUBPATH}
+      volumes:
+        - name: wordpress-data
+          persistentVolumeClaim:
+            claimName: ${STORAGE_PVC}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${WORDPRESS_SERVICE_NAME}
+  namespace: default
+  labels:
+    app: ${WORDPRESS_SERVICE_NAME}
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: ${WORDPRESS_SERVICE_NAME}
+  type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ${WORDPRESS_SERVICE_NAME}
+  namespace: default
+  labels:
+    app: ${WORDPRESS_SERVICE_NAME}
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`${WORDPRESS_DOMAIN}`)
+      services:
+        - name: varnish
+          port: 80

@@ -1,0 +1,32 @@
+#### Comment this sections if you are not using HTTPS with ACME
+additionalArguments:
+  # - '--certificatesResolvers.gandi.acme.dnsChallenge.provider=gandiv5'
+  # - '--certificatesResolvers.gandi.acme.email=${ACME_EMAIL}'
+  # - '--certificatesResolvers.gandi.acme.dnsChallenge.resolvers=8.8.8.8:53,8.8.4.4:53'
+  # - '--certificatesResolvers.gandi.acme.storage=/acme/lets_encrypt/gandi/acme_dnsresolve.json'
+  - '--certificatesResolvers.myresolver.acme.httpChallenge.entryPoint=web'
+  - '--certificatesResolvers.myresolver.acme.email=${ACME_EMAIL}'
+  - '--certificatesResolvers.myresolver.acme.storage=${ACME_PATH}'
+  - "--log.level=INFO"
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteMany
+  existingClaim: nfs-certificates-claim
+  path: /acme
+####
+
+#### Comment this sections if you are not using MetalLB
+service:
+ spec:
+   externalTrafficPolicy: Local
+ annotations:
+   metallb.universe.tf/loadBalancerIPs: ${IP_RANGE_START}
+####
+
+
+logs:
+  access:
+    enabled: true
+  general:
+    level: INFO

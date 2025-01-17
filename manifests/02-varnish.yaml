@@ -1,0 +1,360 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: varnish-config
+  namespace: default
+data:
+  default.vcl: |
+    vcl 4.0;
+
+    import vsthrottle;
+    import std;
+
+    # Definizione dei backends
+    backend oc-old {
+        .host = "oc-oldwebsite-service.default.svc.cluster.local";
+        .port = "80";
+    }
+
+    backend wordpress {
+        .host = "${WORDPRESS_SERVICE_NAME}.default.svc.cluster.local";
+        .port = "80";
+    }
+
+    sub rate_limit {
+        if (req.url ~ "/index/api/" || req.url ~ "/meta/api/") {
+            if (vsthrottle.is_denied(client.ip, 180, 60s)) {
+                set req.http.X-Rate-Limit-Exceeded = "true";
+                return (synth(429, "Too Many Requests"));
+            }
+        }
+    }
+
+    # Gestione delle richieste in ingresso
+    sub vcl_recv {
+        # Applica rate limiting
+        call rate_limit;
+
+        # Instradamento delle richieste al backend corretto
+        if (req.http.host == "oc-old.opencitations.net") {
+            set req.backend_hint = oc-old;
+        } elsif (req.http.host == "${WORDPRESS_DOMAIN}") {
+            set req.backend_hint = wordpress;
+
+            # Check for WordPress authentication and admin cookies
+            if (req.http.cookie) {
+                # Non cachare MAI se l'utente è loggato o ha cookie di amministrazione
+                if (
+                    req.http.cookie ~ "wordpress_logged_in_" ||
+                    req.http.cookie ~ "wordpress_sec_" ||
+                    req.http.cookie ~ "wp-settings-" ||
+                    req.http.cookie ~ "wp-admin" ||
+                    req.http.cookie ~ "comment_author_" ||
+                    req.http.cookie ~ "wp-postpass_" ||
+                    req.http.cookie ~ "wordpress_test_cookie" ||
+                    req.http.cookie ~ "woocommerce_" ||
+                    req.http.cookie ~ "wordpressuser_" ||
+                    req.http.cookie ~ "wordpresspass_" ||
+                    req.http.cookie ~ "wordpress_authenticated"
+                ) {
+                    # Marca la richiesta come intenzionalmente non cachata
+                    set req.http.X-Cache-Skip = "true";
+                    return (pass);
+                }
+
+                # Per gli utenti non autenticati, rimuovi i cookie non necessari
+                set req.http.cookie = regsuball(req.http.cookie, "wp-settings-\d+=[^;]+(; )?", "");
+                set req.http.cookie = regsuball(req.http.cookie, "wp-settings-time-\d+=[^;]+(; )?", "");
+                if (req.http.cookie == "") {
+                    unset req.http.cookie;
+                }
+            }
+
+            # Bypass cache per wp-admin, wp-login, e richieste POST
+            if (
+                req.url ~ "^/wp-(admin|login)" ||
+                req.method == "POST" ||
+                req.url ~ "preview=true" ||
+                req.url ~ "customize.php" ||
+                req.url ~ "xmlrpc.php" ||
+                req.url ~ "feed/" ||
+                req.url ~ "/wc-api/" ||
+                req.url ~ "/my-account/" ||
+                req.url ~ "/addons/"
+            ) {
+                # Marca la richiesta come intenzionalmente non cachata
+                set req.http.X-Cache-Skip = "true";
+                return (pass);
+            }
+        } else {
+            return (synth(404, "Not Found"));
+        }
+        
+        # Per le chiamate API, ignora l'User-Agent e X-Device
+        if (req.url ~ "/index/api/" || req.url ~ "/meta/api/") {
+            unset req.http.User-Agent;
+            unset req.http.X-Device;
+        }
+        
+        # Gestione delle richieste GET e HEAD
+        if (req.method == "GET" || req.method == "HEAD") {
+            return (hash);
+        } else {
+            # Marca le altre richieste come intenzionalmente non cachate
+            set req.http.X-Cache-Skip = "true";
+            return (pass);
+        }
+    }
+
+    # Generazione della chiave di hash
+    sub vcl_hash {
+        hash_data(req.url);
+        hash_data(req.http.host);
+        
+        if (!(req.url ~ "/index/api/" || req.url ~ "/meta/api/")) {
+            hash_data(req.http.X-Device);
+        }
+        
+        return (lookup);
+    }
+
+    # Gestione delle risposte dal backend
+    sub vcl_backend_response {
+        # Gestione delle risposte 4xx e 5xx
+        if (beresp.status >= 400) {
+            set beresp.ttl = 600s;
+            set beresp.grace = 0s;
+            set beresp.keep = 0s;
+            return (deliver);
+        }
+
+        # Gestione specifica per WordPress
+        if (bereq.url ~ "^/wp-" && bereq.url !~ "\.(css|js|png|gif|jp(e)?g)") {
+            set beresp.ttl = 1h;
+            set beresp.grace = 2h;
+        }
+
+        # Non cachare pagine di amministrazione WordPress o risultati di ricerca
+        if (bereq.url ~ "^/wp-(admin|login)|preview=true" || bereq.url ~ "/\\?s=") {
+            set beresp.uncacheable = true;
+            return (deliver);
+        }
+
+        # Imposta TTL per diversi tipi di contenuto
+        if (bereq.url ~ "\.(css|js|png|gif|jp(e)?g|swf|ico)$") {
+            set beresp.ttl = 30d;  # Risorse statiche a 30 giorni
+        } elseif (bereq.url ~ "\.(html|woff|woff2|ttf|eot|json)$") {
+            set beresp.ttl = 10d;  # Altri file statici a 10 giorni
+        } elseif (bereq.url ~ "/index/api/" || bereq.url ~ "/meta/api/") {
+            set beresp.ttl = 10d;  # API a 10 giorni
+        } else {
+            set beresp.ttl = 1h;   # Contenuto dinamico a 1 ora
+        }
+
+        # Rimuovi Set-Cookie per risorse statiche
+        if (bereq.url ~ "\.(css|js|png|gif|jp(e)?g|swf|ico)$") {
+            unset beresp.http.Set-Cookie;
+        }
+
+        return (deliver);
+    }
+
+    # Gestione degli errori del backend
+    sub vcl_backend_error {
+        set beresp.http.Content-Type = "text/html; charset=utf-8";
+        set beresp.http.Retry-After = "5";
+        synthetic({"<!DOCTYPE html>
+    <html>
+      <head>
+        <title>Momentary Service Interruption</title>
+        <style>
+          body { font-family: Arial, sans-serif; background-color: #f0f0f0; color: #333; text-align: center; padding: 50px; }
+          h1 { color: #e74c3c; }
+          p { font-size: 18px; }
+        </style>
+      </head>
+      <body>
+        <h1>We're Sorry!</h1>
+        <p>Our service is currently experiencing some technical difficulties.</p>
+        <p>We are working hard to resolve the issue and will be back shortly.</p>
+        <p>Error details: "} + beresp.status + " " + beresp.reason + {"</p>
+        <p>Please try again in a few moments.</p>
+      </body>
+    </html>"});
+        return (deliver);
+    }
+
+    # Consegna delle risposte al client
+    sub vcl_deliver {
+        # Imposta l'header X-Cache in base al tipo di risposta
+        if (obj.hits > 0) {
+            set resp.http.X-Cache = "HIT";
+        } elsif (req.http.X-Cache-Skip) {
+            set resp.http.X-Cache = "SKIP";
+        } else {
+            set resp.http.X-Cache = "MISS";
+        }
+        
+        # Cambia l'header Server (Easter egg)
+        set resp.http.Server = "Apache/2.4.10 (Win32)";
+
+        # Rimuovi headers non necessari per i client
+        unset resp.http.Via;
+        unset resp.http.X-Powered-By;
+        # Rimuovi l'header di skip interno
+        unset resp.http.X-Cache-Skip;
+
+        # Mantieni l'header X-Device se presente
+        if (req.http.X-Device) {
+            set resp.http.X-Device = req.http.X-Device;
+        }
+
+        return (deliver);
+    }
+
+    # Gestione degli errori sintetici
+    sub vcl_synth {
+        set resp.http.Content-Type = "text/html; charset=utf-8";
+        
+        if (resp.status == 429) {
+            set resp.status = 429;
+            set resp.reason = "Too Many Requests";
+            set resp.body = {"<!DOCTYPE html>
+                            <html lang="en">
+                            <head>
+                                <meta charset="UTF-8">
+                                <title>API Rate Limit Exceeded</title>
+                                <style>
+                                    body {
+                                        font-family: Arial, sans-serif;
+                                        background-color: #f8f9fa;
+                                        color: #333;
+                                        text-align: center;
+                                        padding: 50px;
+                                    }
+                                    h1 {
+                                        color: #dc3545;
+                                        font-size: 36px;
+                                        margin-bottom: 20px;
+                                    }
+                                    p {
+                                        font-size: 18px;
+                                        margin-bottom: 10px;
+                                    }
+                                    .container {
+                                        max-width: 600px;
+                                        margin: 0 auto;
+                                        background-color: #fff;
+                                        padding: 40px;
+                                        border-radius: 5px;
+                                        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                                    }
+                                    .icon {
+                                        font-size: 60px;
+                                        color: #dc3545;
+                                        margin-bottom: 20px;
+                                    }
+                                    .btn {
+                                        display: inline-block;
+                                        background-color: #007bff;
+                                        color: #fff;
+                                        padding: 10px 20px;
+                                        text-decoration: none;
+                                        border-radius: 5px;
+                                        margin-top: 20px;
+                                        transition: background-color 0.3s;
+                                    }
+                                    .btn:hover {
+                                        background-color: #0056b3;
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="container">
+                                    <div class="icon">&#9888;</div>
+                                    <h1>API Rate Limit Exceeded</h1>
+                                    <p>We're sorry, but you have exceeded the allowed number of API requests.</p>
+                                    <p>Our API is limited to 100 requests per minute for all users.</p>
+                                    <p>Please wait a few seconds before making additional requests.</p>
+                                    <a href="/" class="btn">Return to Homepage</a>
+                                </div>
+                            </body>
+                            </html>"};
+            return (deliver);
+        } else {
+            synthetic("Too Many Requests");
+        }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: varnish
+ namespace: default
+ labels:
+   app: varnish
+spec:
+ replicas: 2
+ revisionHistoryLimit: 30
+ progressDeadlineSeconds: 600
+ selector:
+   matchLabels:
+     app: varnish
+ strategy:
+   type: RollingUpdate
+ template:
+   metadata:
+     labels:
+       app: varnish 
+   spec:
+     containers:
+       - name: varnish
+         image: varnish:7.6.0
+         imagePullPolicy: Always
+         securityContext:
+           capabilities:
+             add: ["IPC_LOCK"]
+         args:
+           - varnishd
+           - '-F'
+           - '-a'
+           - ':80'
+           - '-f'
+           - /etc/varnish/default.vcl
+           - '-s'
+           - malloc,8g
+         ports:
+           - containerPort: 80
+             protocol: TCP
+         resources:
+           limits:
+             memory: 10Gi
+           requests:
+             memory: 10Gi
+         volumeMounts:
+           - name: varnish-config
+             mountPath: /etc/varnish
+     volumes:
+       - name: varnish-config
+         configMap:
+           name: varnish-config
+           defaultMode: 420
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: varnish
+  namespace: default
+  labels:
+    app: varnish
+spec:
+  selector:
+    app: varnish
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  type: ClusterIP

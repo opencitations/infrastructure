@@ -1,0 +1,3 @@
+python-dotenv>=0.21.0
+pyyaml>=6.0
+gitpython

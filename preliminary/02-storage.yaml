@@ -1,0 +1,59 @@
+#Primary storage configuration
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ${STORAGE_PV}
+spec:
+  capacity:
+    storage: 6000Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    path: "${NFS_DATA_PATH}"
+    server: "${NFS_SERVER}"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ${STORAGE_PVC}
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 6000Gi
+  volumeName: ${STORAGE_PV}
+
+
+#### Comment this sections if you are not using Let's Encrypt
+# HTTPS certificates configurations
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-certificates
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    path: "${NFS_CERT_PATH}"
+    server: "${NFS_SERVER}"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-certificates-claim
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  volumeName: nfs-certificates
+####

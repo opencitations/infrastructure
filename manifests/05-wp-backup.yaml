@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pcloud-config
+  namespace: default
+  labels:
+    app: wordpress-backup
+type: Opaque
+data:
+  rclone.conf: >-
+    ${RCLONE_CONFIG}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-script
+  namespace: default
+  labels:
+    app: wordpress-backup
+data:
+  backup.sh: |
+    #!/bin/sh
+    set -e  # Exit on error
+    
+    NFS_ROOT="/mnt/nfs"
+    BACKUP_DIR="${NFS_ROOT}/wp-backup"
+    DATE=$(date +%Y%m%d_%H%M%S)
+    PCLOUD_FOLDER="${PCLOUD_BACKUP_FOLDER}"
+
+    # Verifica directories
+    echo "Verifica directories..."
+    mkdir -p $BACKUP_DIR
+
+    # Installa dipendenze necessarie
+    apk add --no-cache mysql-client p7zip
+
+    # Backup SQL del database
+    echo "Creating SQL dump..."
+    mysqldump -h mariadb.default.svc.cluster.local \
+        -u wp_user \
+        -p$WORDPRESS_DB_PASSWORD \
+        --single-transaction \
+        --quick \
+        --lock-tables=false \
+        wordpress_db > $BACKUP_DIR/db_dump_$DATE.sql
+
+    # Backup files WordPress
+    echo "Backup WordPress files..."
+    7z a -bb0 $BACKUP_DIR/wp_backup_$DATE.7z -w${BACKUP_DIR} ${NFS_ROOT}/${WORDPRESS_SUBPATH}
+
+    # Backup raw database files
+    echo "Backup database files..."
+    7z a -bb0 $BACKUP_DIR/db_files_$DATE.7z -w${BACKUP_DIR} ${NFS_ROOT}/${MARIADB_SUBPATH}
+
+    # Backup finale che include tutto
+    echo "Creating full backup..."
+    7z a -bb3 $BACKUP_DIR/full_backup_$DATE.7z \
+        $BACKUP_DIR/db_dump_$DATE.sql \
+        $BACKUP_DIR/db_files_$DATE.7z \
+        $BACKUP_DIR/wp_backup_$DATE.7z
+
+    # Upload su pCloud
+    echo "Uploading to pCloud..."
+    rclone --config /config/rclone/rclone.conf -P copy $BACKUP_DIR/full_backup_$DATE.7z pcloud:"$PCLOUD_FOLDER"/
+
+    # Pulizia files locali
+    echo "Cleaning up local files..."
+    rm $BACKUP_DIR/db_dump_$DATE.sql
+    rm $BACKUP_DIR/db_files_$DATE.7z
+    rm $BACKUP_DIR/wp_backup_$DATE.7z
+    rm $BACKUP_DIR/full_backup_$DATE.7z
+
+    # Pulizia backup vecchi su pCloud
+    echo "Cleaning old backups..."
+    rclone --config /config/rclone/rclone.conf delete pcloud:"$PCLOUD_FOLDER" --min-age ${BACKUP_RETENTION_DAYS}d
+
+    echo "Backup completed successfully!"
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: wordpress-backup
+  namespace: default
+  labels:
+    app: wordpress-backup
+spec:
+  schedule: "${BACKUP_SCHEDULE}"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+          containers:
+          - name: backup
+            image: rclone/rclone:1.65
+            imagePullPolicy: IfNotPresent
+            command: ["/bin/sh"]
+            args: ["/scripts/backup.sh"]
+            env:
+            - name: WORDPRESS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mariadb-secret
+                  key: user-password
+            - name: WORDPRESS_SUBPATH
+              value: "${WORDPRESS_SUBPATH}"
+            - name: MARIADB_SUBPATH
+              value: "${MARIADB_SUBPATH}"
+            - name: PCLOUD_BACKUP_FOLDER
+              value: "${PCLOUD_BACKUP_FOLDER}"
+            - name: BACKUP_RETENTION_DAYS
+              value: "${BACKUP_RETENTION_DAYS}"
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "200m"
+              limits:
+                memory: "1Gi"
+                cpu: "1"
+            volumeMounts:
+            - name: backup-script
+              mountPath: /scripts
+            - name: nfs-data
+              mountPath: /mnt/nfs
+            - name: pcloud-config
+              mountPath: /config/rclone
+          volumes:
+          - name: backup-script
+            configMap:
+              name: backup-script
+              defaultMode: 0755
+          - name: nfs-data
+            persistentVolumeClaim:
+              claimName: ${STORAGE_PVC}
+          - name: pcloud-config
+            secret:
+              secretName: pcloud-config
+              defaultMode: 0600
+          restartPolicy: OnFailure
