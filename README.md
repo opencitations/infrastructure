@@ -164,8 +164,8 @@ This will process all manifests and push them to your Fleet repository.
 
 #### Direct Deployment
 ```bash
-./deploy.py              # Deploy all services
-./deploy.py manifest.yaml # Deploy a specific service
+./deploy.py                            # Deploy all manifest
+./deploy.py manifest/0x-manifest.yaml  # Deploy a specific service
 ```
 
 ## Troubleshooting
