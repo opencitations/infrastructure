@@ -21,6 +21,11 @@ data:
         .port = "80";
     }
 
+    backend sparql {
+        .host = "oc-sparql-service.default.svc.cluster.local";
+        .port = "80";
+    }
+
     sub rate_limit {
         if (req.url ~ "/index/api/" || req.url ~ "/meta/api/") {
             if (vsthrottle.is_denied(client.ip, 180, 60s)) {
@@ -38,6 +43,9 @@ data:
         # Instradamento delle richieste al backend corretto
         if (req.http.host == "oc-old.opencitations.net") {
             set req.backend_hint = oc-old;
+        } elsif (req.http.host == "sparql.opencitations.net") {
+            set req.backend_hint = sparql;
+            return (pass);
         } elsif (req.http.host == "${WORDPRESS_DOMAIN}") {
             set req.backend_hint = wordpress;
 
@@ -345,7 +353,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: varnish
+  name: varnish-service
   namespace: default
   labels:
     app: varnish

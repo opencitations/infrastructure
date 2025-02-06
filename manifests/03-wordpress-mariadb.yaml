@@ -168,5 +168,5 @@ spec:
     - kind: Rule
       match: Host(`${WORDPRESS_DOMAIN}`)
       services:
-        - name: varnish
+        - name: varnish-service
           port: 80

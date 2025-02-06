@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-sparql
+  namespace: default
+  labels:
+    app: oc-sparql
+spec:
+  selector:
+    matchLabels:
+      app: oc-sparql
+  template:
+    metadata:
+      labels:
+        app: oc-sparql
+    spec:
+      containers:
+        - name: oc-sparql
+          image: bolobynight/oc-website:${SPARQL_WEBSITE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: SPARQL_BASE_URL
+              value: "${SPARQL_BASE_URL}"
+            - name: SPARQL_ENDPOINT_INDEX
+              value: "${SPARQL_ENDPOINT_INDEX}"
+            - name: SPARQL_ENDPOINT_META
+              value: "${SPARQL_ENDPOINT_META}"
+            - name: VIRTUOSO_HOST
+              value: ${VIRTUOSO_SERVICE_NAME}
+            - name: VIRTUOSO_PORT
+              value: '1111'
+            - name: VIRTUOSO_USER
+              value: ${VIRTUOSO_USER}
+            - name: VIRTUOSO_PASSWORD
+              value: ${VIRTUOSO_DBA_PASSWORD}
+          resources: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+ name: oc-sparql-service
+ namespace: default
+ labels:
+   app: oc-sparql
+spec:
+ selector:
+   app: oc-sparql
+ ports:
+   - name: http
+     port: 80
+     protocol: TCP
+     targetPort: 8080
+ type: ClusterIP
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-sparql
+ namespace: default
+ labels:
+   app: oc-sparql
+spec:
+ entryPoints:
+   - websecure
+ routes:
+   - kind: Rule
+     match: Host(`sparql.opencitations.net`)
+     services:
+       - name: varnish-service
+         port: 80
+ tls:
+   certResolver: myresolver
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-sparql-http-only
+ namespace: default
+ labels:
+   app: oc-sparql
+spec:
+ entryPoints:
+   - web
+ routes:
+   - kind: Rule
+     match: Host(`sparql.opencitations.net`)
+     middlewares:
+       - name: redirect-to-https
+     services:
+       - name: varnish-service
+         port: 80

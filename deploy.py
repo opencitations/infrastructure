@@ -23,6 +23,7 @@ def check_helm_installation():
     else:
         print("Helm is already installed")
 
+'''
 def load_environment():
     """Load environment variables from .env file"""
     if not os.path.exists('.env'):
@@ -39,7 +40,57 @@ def load_environment():
                 key, value = line.split('=', 1)
                 env_vars[key.strip()] = value.strip()
     return env_vars
-
+'''
+def load_environment():
+    """Load environment variables from .env file and process computed variables"""
+    if not os.path.exists('.env'):
+        print("Error: .env file not found")
+        print("Please copy .env.example to .env and set your values")
+        sys.exit(1)
+    
+    env_vars = {}
+    computed_vars = {}
+    
+    # Prima passiamo il file per raccogliere le definizioni
+    with open('.env', 'r') as file:
+        for line in file:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # Se il valore contiene un'espressione con '+'
+                if '+' in value:
+                    computed_vars[key] = value
+                else:
+                    env_vars[key] = value
+    
+    # Ora processiamo le variabili computate
+    for key, expression in computed_vars.items():
+        # Dividiamo l'espressione in parti
+        parts = [p.strip() for p in expression.split('+')]
+        
+        # Processiamo ogni parte
+        processed_parts = []
+        for part in parts:
+            # Se la parte è una stringa letterale (tra apici)
+            if (part.startswith("'") and part.endswith("'")) or \
+               (part.startswith('"') and part.endswith('"')):
+                processed_parts.append(part.strip("'\""))
+            # Se è un riferimento a una variabile
+            else:
+                var_name = part.strip()
+                if var_name in env_vars:
+                    processed_parts.append(env_vars[var_name])
+                else:
+                    print(f"Warning: Variable {var_name} referenced in {key} not found")
+                    processed_parts.append("")
+        
+        # Combiniamo le parti
+        env_vars[key] = ''.join(processed_parts)
+    
+    return env_vars
 
 def process_yaml(file_path, env_vars):
     """Replace placeholders in YAML files with environment variables"""

@@ -6,7 +6,7 @@ metadata:
   labels:
     app: index-db-qlever
 spec:
-  serviceName: qlever-service
+  serviceName: ${QLEVER_SERVICE_NAME}
   replicas: 1
   selector:
     matchLabels:
@@ -56,7 +56,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: qlever-service
+  name: ${QLEVER_SERVICE_NAME}
   namespace: default
 spec:
   type: LoadBalancer
