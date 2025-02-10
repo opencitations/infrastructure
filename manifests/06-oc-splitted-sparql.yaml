@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: oc-sparql
-          image: bolobynight/oc-website:${SPARQL_WEBSITE_VERSION}
+          image: opencitations/oc_sparql:${SPARQL_WEBSITE_VERSION}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
