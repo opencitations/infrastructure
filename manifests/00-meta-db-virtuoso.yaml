@@ -1,20 +1,23 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: meta-db-virtuoso
+  name: meta-db-virtuoso-1
   namespace: default
   labels:
     app: meta-db-virtuoso
+    instance: virtuoso-1
 spec:
   serviceName: ${VIRTUOSO_SERVICE_NAME}
   replicas: 1
   selector:
     matchLabels:
       app: meta-db-virtuoso
+      instance: virtuoso-1
   template:
     metadata:
       labels:
         app: meta-db-virtuoso
+        instance: virtuoso-1
     spec:
       containers:
         - name: virtuoso
@@ -45,6 +48,62 @@ spec:
             - mountPath: /database
               name: virtuoso-storage
               subPath: ${VIRTUOSO_DB_SUBPATH}
+      volumes:
+        - name: virtuoso-storage
+          persistentVolumeClaim:
+            claimName: ${STORAGE_PVC}
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: meta-db-virtuoso-2
+  namespace: default
+  labels:
+    app: meta-db-virtuoso
+    instance: virtuoso-2
+spec:
+  serviceName: ${VIRTUOSO_SERVICE_NAME}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meta-db-virtuoso
+      instance: virtuoso-2
+  template:
+    metadata:
+      labels:
+        app: meta-db-virtuoso
+        instance: virtuoso-2
+    spec:
+      containers:
+        - name: virtuoso
+          image: openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DBA_PASSWORD
+              value: "${VIRTUOSO_DBA_PASSWORD}"
+          ports:
+            - containerPort: 1111
+              protocol: TCP
+              name: isql
+            - containerPort: 8890
+              protocol: TCP
+              name: sparql
+          resources:
+            requests:
+              cpu: ${VIRTUOSO_CPU_REQUEST}
+              memory: ${VIRTUOSO_MEMORY_REQUEST}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - '-c'
+                  - virtuoso-t +wait +shutdown
+          volumeMounts:
+            - mountPath: /database
+              name: virtuoso-storage
+              subPath: ${VIRTUOSO_DB_SUBPATH_2}
       volumes:
         - name: virtuoso-storage
           persistentVolumeClaim:
