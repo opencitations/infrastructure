@@ -13,6 +13,8 @@ data:
     # Definizione dei backends
     backend oc-old {
         .host = "oc-oldwebsite-service.default.svc.cluster.local";
+        .first_byte_timeout = 900s;
+        .between_bytes_timeout = 900s;
         .port = "80";
     }
 
@@ -23,6 +25,8 @@ data:
 
     backend sparql {
         .host = "oc-sparql-service.default.svc.cluster.local";
+        .first_byte_timeout = 900s;
+        .between_bytes_timeout = 900s;
         .port = "80";
     }
 
