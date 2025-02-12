@@ -1,20 +1,23 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: index-db-qlever
+  name: index-db-qlever-1
   namespace: default
   labels:
     app: index-db-qlever
+    instance: qlever-1
 spec:
   serviceName: ${QLEVER_SERVICE_NAME}
   replicas: 1
   selector:
     matchLabels:
       app: index-db-qlever
+      instance: qlever-1
   template:
     metadata:
       labels:
         app: index-db-qlever
+        instance: qlever-1
     spec:
       containers:
         - name: qlever-server
@@ -23,11 +26,26 @@ spec:
           command:
             - bash
             - '-c'
-            - 'ServerMain -i oc_index -j 18 -p 7011 -m 150G -c 50G -e 3G -k 200 -s 250s > oc_index.server-log.txt 2>&1'
+            - 'ServerMain -i oc_index -j 15 -p 7011 -m 128G -c 48G -e 3G -k 200 -s 320s 2>&1 | tee oc_index.server-log.txt'
           ports:
             - containerPort: 7011
               protocol: TCP
               name: qlever
+          readinessProbe:
+            tcpSocket:
+              port: 7011
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 25
+            successThreshold: 1
+            failureThreshold: 7
+          livenessProbe:
+            tcpSocket:
+              port: 7011
+            initialDelaySeconds: 340
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 2
           resources:
             requests:
               cpu: ${QLEVER_CPU_REQUEST}
@@ -43,6 +61,79 @@ spec:
             - mountPath: /index
               name: qlever-storage
               subPath: ${INDEX_DB_SUBPATH}
+          workingDir: /index
+      securityContext:
+        runAsGroup: 1000
+        runAsUser: 1000
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: qlever-storage
+          persistentVolumeClaim:
+            claimName: ${STORAGE_PVC}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: index-db-qlever-2
+  namespace: default
+  labels:
+    app: index-db-qlever
+    instance: qlever-2
+spec:
+  serviceName: ${QLEVER_SERVICE_NAME}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: index-db-qlever
+      instance: qlever-2
+  template:
+    metadata:
+      labels:
+        app: index-db-qlever
+        instance: qlever-2
+    spec:
+      containers:
+        - name: qlever-server
+          image: adfreiburg/qlever@sha256:31de1e6f027eb429abcfc49b6aa4da352d6621b6ec14b768da46b91e25b08075
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - '-c'
+            - 'ServerMain -i oc_index -j 15 -p 7011 -m 128G -c 48G -e 3G -k 200 -s 320s 2>&1 | tee oc_index.server-log.txt'
+          ports:
+            - containerPort: 7011
+              protocol: TCP
+              name: qlever
+          readinessProbe:
+            tcpSocket:
+              port: 7011
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 25
+            successThreshold: 1
+            failureThreshold: 7
+          livenessProbe:
+            tcpSocket:
+              port: 7011
+            initialDelaySeconds: 340
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: ${QLEVER_CPU_REQUEST}
+              memory: ${QLEVER_MEMORY_REQUEST}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - '-c'
+                  - echo 'Stopping QLever gracefully'; sleep 15
+          volumeMounts:
+            - mountPath: /index
+              name: qlever-storage
+              subPath: ${INDEX_DB_SUBPATH_2}
           workingDir: /index
       securityContext:
         runAsGroup: 1000

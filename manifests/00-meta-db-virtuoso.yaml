@@ -33,6 +33,21 @@ spec:
             - containerPort: 8890
               protocol: TCP
               name: sparql
+          readinessProbe:
+            tcpSocket:
+              port: 1111
+            initialDelaySeconds: 30   
+            periodSeconds: 10          
+            timeoutSeconds: 5          
+            successThreshold: 1        
+            failureThreshold: 5       
+          livenessProbe:
+            tcpSocket:
+              port: 1111
+            initialDelaySeconds: 240 
+            periodSeconds: 60          
+            timeoutSeconds: 15          
+            failureThreshold: 2
           resources:
             requests:
               cpu: ${VIRTUOSO_CPU_REQUEST}
