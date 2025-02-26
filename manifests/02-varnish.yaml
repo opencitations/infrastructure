@@ -30,13 +30,48 @@ data:
         .port = "80";
     }
 
+    backend search {
+        .host = "oc-search-service.default.svc.cluster.local";
+        .first_byte_timeout = 900s;
+        .between_bytes_timeout = 900s;
+        .port = "80";
+    }
+
+    # sub rate_limit {
+    #     if (req.url ~ "/index/api/" || req.url ~ "/meta/api/") {
+    #         if (vsthrottle.is_denied(client.ip, 180, 60s)) {
+    #             set req.http.X-Rate-Limit-Exceeded = "true";
+    #             return (synth(429, "Too Many Requests"));
+    #         }
+    #     }
+    # }
+
     sub rate_limit {
-        if (req.url ~ "/index/api/" || req.url ~ "/meta/api/") {
-            if (vsthrottle.is_denied(client.ip, 180, 60s)) {
-                set req.http.X-Rate-Limit-Exceeded = "true";
-                return (synth(429, "Too Many Requests"));
+        # Controlla se l'host termina con opencitations.net
+        if (req.http.host ~ "opencitations\.net$") {
+            # Salta il rate limiting per gli IP in whitelist
+            if (client.ip ~ whitelist) {
+                return;
+            }
+
+            # Applica rate limit globale per IP
+            if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
+              if (vsthrottle.is_denied(client.ip, 340, 60s)) {
+                  # Aggiungi headers informativi prima del blocco
+                  set req.http.X-Rate-Limit-Exceeded = "true";
+                  set req.http.X-Rate-Limit = "100";
+                  set req.http.X-Rate-Window = "60";
+                  return (synth(429, "Too Many Requests"));
+              }
             }
         }
+    }
+
+    # ACL per gli IP in whitelist
+    acl whitelist {
+        # Lista degli IP in whitelist
+        "130.136.130.1";
+        "137.204.166.210";
     }
 
     # Gestione delle richieste in ingresso
@@ -50,6 +85,9 @@ data:
         } elsif (req.http.host == "sparql.opencitations.net") {
             set req.backend_hint = sparql;
             return (pass);
+        } elsif (req.http.host == "search.opencitations.net") {
+            set req.backend_hint = search;
+            return (pass); 
         } elsif (req.http.host == "${WORDPRESS_DOMAIN}") {
             set req.backend_hint = wordpress;
 
@@ -286,7 +324,7 @@ data:
                                     <div class="icon">&#9888;</div>
                                     <h1>API Rate Limit Exceeded</h1>
                                     <p>We're sorry, but you have exceeded the allowed number of API requests.</p>
-                                    <p>Our API is limited to 100 requests per minute for all users.</p>
+                                    <p>Our API is limited to 200 requests per minute for all users.</p>
                                     <p>Please wait a few seconds before making additional requests.</p>
                                     <a href="/" class="btn">Return to Homepage</a>
                                 </div>

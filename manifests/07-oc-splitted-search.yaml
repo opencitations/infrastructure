@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-search
+  namespace: default
+  labels:
+    app: oc-search
+spec:
+  selector:
+    matchLabels:
+      app: oc-search
+  template:
+    metadata:
+      labels:
+        app: oc-search
+    spec:
+      containers:
+        - name: oc-search
+          image: opencitations/oc_search:${SEARCH_WEBSITE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: SEARCH_BASE_URL
+              value: "${SEARCH_BASE_URL}"
+            - name: SPARQL_ENDPOINT_INDEX
+              value: "${SPARQL_ENDPOINT_INDEX}"
+            - name: SPARQL_ENDPOINT_META
+              value: "${SPARQL_ENDPOINT_META}"
+            - name: VIRTUOSO_HOST
+              value: ${VIRTUOSO_SERVICE_NAME}
+            - name: VIRTUOSO_PORT
+              value: '1111'
+            - name: VIRTUOSO_USER
+              value: ${VIRTUOSO_USER}
+            - name: VIRTUOSO_PASSWORD
+              value: ${VIRTUOSO_DBA_PASSWORD}
+          resources: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+ name: oc-search-service
+ namespace: default
+ labels:
+   app: oc-search
+spec:
+ selector:
+   app: oc-search
+ ports:
+   - name: http
+     port: 80
+     protocol: TCP
+     targetPort: 8080
+ type: ClusterIP
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-search
+ namespace: default
+ labels:
+   app: oc-search
+spec:
+ entryPoints:
+   - websecure
+ routes:
+   - kind: Rule
+     match: Host(`search.opencitations.net`)
+     services:
+       - name: varnish-service
+         port: 80
+ tls:
+   certResolver: myresolver
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-search-http-only
+ namespace: default
+ labels:
+   app: oc-search
+spec:
+ entryPoints:
+   - web
+ routes:
+   - kind: Rule
+     match: Host(`search.opencitations.net`)
+     middlewares:
+       - name: redirect-to-https
+     services:
+       - name: varnish-service
+         port: 80
