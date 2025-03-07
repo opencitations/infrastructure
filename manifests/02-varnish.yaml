@@ -37,6 +37,13 @@ data:
         .port = "80";
     }
 
+    backend download {
+        .host = "oc-download-service.default.svc.cluster.local";
+        .first_byte_timeout = 900s;
+        .between_bytes_timeout = 900s;
+        .port = "80";
+    }
+
     # sub rate_limit {
     #     if (req.url ~ "/index/api/" || req.url ~ "/meta/api/") {
     #         if (vsthrottle.is_denied(client.ip, 180, 60s)) {
@@ -84,6 +91,9 @@ data:
             set req.backend_hint = oc-old;
         } elsif (req.http.host == "sparql.opencitations.net") {
             set req.backend_hint = sparql;
+            return (pass);
+        } elsif (req.http.host == "download.opencitations.net") {
+            set req.backend_hint = download;
             return (pass);
         } elsif (req.http.host == "search.opencitations.net") {
             set req.backend_hint = search;
