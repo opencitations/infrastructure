@@ -125,6 +125,10 @@ spec:
                   key: user-password
             - name: WORDPRESS_DB_NAME
               value: wordpress_db
+            - name: WORDPRESS_CONFIG_EXTRA
+              value: |
+                define('WP_HOME', '${WORDPRESS_DOMAIN}');
+                define('WP_SITEURL', '${WORDPRESS_DOMAIN}');
           resources:
             requests:
               cpu: 300m

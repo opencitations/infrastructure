@@ -65,7 +65,7 @@ spec:
     - match: Host(`oc-old.opencitations.net`)
       kind: Rule
       services:
-        - name: varnish
+        - name: varnish-service
           port: 80
       # tls:
       #   certResolver: myresolver
