@@ -51,15 +51,6 @@ data:
         .port = "80";
     }
 
-    # sub rate_limit {
-    #     if (req.url ~ "/index/api/" || req.url ~ "/meta/api/") {
-    #         if (vsthrottle.is_denied(client.ip, 180, 60s)) {
-    #             set req.http.X-Rate-Limit-Exceeded = "true";
-    #             return (synth(429, "Too Many Requests"));
-    #         }
-    #     }
-    # }
-
     sub rate_limit {
         # Controlla se l'host termina con opencitations.net
         if (req.http.host ~ "opencitations\.net$") {
@@ -70,7 +61,7 @@ data:
 
             # Applica rate limit globale per IP
             if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-              if (vsthrottle.is_denied(client.ip, 340, 60s)) {
+              if (vsthrottle.is_denied(client.ip, 240, 60s)) {
                   # Aggiungi headers informativi prima del blocco
                   set req.http.X-Rate-Limit-Exceeded = "true";
                   set req.http.X-Rate-Limit = "100";
@@ -94,7 +85,7 @@ data:
         call rate_limit;
 
         # Instradamento delle richieste al backend corretto
-        if (req.http.host == "oc-old.opencitations.net") {
+        if (req.http.host == "k8s.opencitations.net") {
             set req.backend_hint = oc-old;
         } elsif (req.http.host == "sparql.opencitations.net") {
             set req.backend_hint = sparql;
@@ -107,7 +98,6 @@ data:
             return (pass); 
         } elsif (req.http.host == "api.opencitations.net") {
             set req.backend_hint = api;
-            return (pass);
         } elsif (req.http.host == "${WORDPRESS_DOMAIN}") {
             set req.backend_hint = wordpress;
 
@@ -161,7 +151,7 @@ data:
         }
         
         # Per le chiamate API, ignora l'User-Agent e X-Device
-        if (req.url ~ "/index/api/" || req.url ~ "/meta/api/") {
+        if (req.url ~ "/meta/v1/" || req.url ~ "/index/v1/" || req.url ~ "/index/v2/") {
             unset req.http.User-Agent;
             unset req.http.X-Device;
         }
@@ -181,7 +171,7 @@ data:
         hash_data(req.url);
         hash_data(req.http.host);
         
-        if (!(req.url ~ "/index/api/" || req.url ~ "/meta/api/")) {
+        if (!(req.url ~ "/meta/v1/" || req.url ~ "/index/v1/" || req.url ~ "/index/v2/")) {
             hash_data(req.http.X-Device);
         }
         
@@ -215,8 +205,8 @@ data:
             set beresp.ttl = 30d;  # Risorse statiche a 30 giorni
         } elseif (bereq.url ~ "\.(html|woff|woff2|ttf|eot|json)$") {
             set beresp.ttl = 10d;  # Altri file statici a 10 giorni
-        } elseif (bereq.url ~ "/index/api/" || bereq.url ~ "/meta/api/") {
-            set beresp.ttl = 10d;  # API a 10 giorni
+        } elseif (bereq.url ~ "/meta/v1/" || bereq.url ~ "/index/v1/" || bereq.url ~ "/index/v2/") {
+            set beresp.ttl = 60d;  # API a 60 giorni
         } else {
             set beresp.ttl = 1h;   # Contenuto dinamico a 1 ora
         }
