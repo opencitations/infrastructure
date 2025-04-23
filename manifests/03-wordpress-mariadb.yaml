@@ -127,8 +127,8 @@ spec:
               value: wordpress_db
             - name: WORDPRESS_CONFIG_EXTRA
               value: |
-                define('WP_HOME', '${WORDPRESS_DOMAIN}');
-                define('WP_SITEURL', '${WORDPRESS_DOMAIN}');
+                define('WP_HOME', '${DOMAIN_WITH_HTTPS}');
+                define('WP_SITEURL', '${DOMAIN_WITH_HTTPS}');
           resources:
             requests:
               cpu: 300m
