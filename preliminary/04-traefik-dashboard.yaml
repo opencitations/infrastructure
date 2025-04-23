@@ -1,4 +1,17 @@
 apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: internal-ipwhitelist
+  namespace: default
+spec:
+  ipWhiteList:
+    sourceRange:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 127.0.0.1/32
+---
+apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: traefik-dashboard
@@ -9,6 +22,8 @@ spec:
   routes:
     - kind: Rule
       match: Host(`traefik-localhost.com`)
+      middlewares:
+        - name: internal-ipwhitelist
       services:
         - kind: TraefikService
           name: api@internal
