@@ -85,9 +85,9 @@ data:
         call rate_limit;
 
         # Instradamento delle richieste al backend corretto
-        if (req.http.host == "k8s.opencitations.net") {
-            set req.backend_hint = oc-old;
-        } elsif (req.http.host == "sparql.opencitations.net") {
+        #if (req.http.host == "k8s.opencitations.net") {
+        #    set req.backend_hint = oc-old;
+        if (req.http.host == "sparql.opencitations.net") {
             set req.backend_hint = sparql;
             return (pass);
         } elsif (req.http.host == "download.opencitations.net") {
