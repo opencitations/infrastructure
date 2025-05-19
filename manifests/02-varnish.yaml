@@ -10,7 +10,7 @@ data:
     import vsthrottle;
     import std;
 
-    # Definizione dei backends
+    # Backend definitions
     #backend oc-old {
     #    .host = "oc-oldwebsite-service.default.svc.cluster.local";
     #    .first_byte_timeout = 900s;
@@ -52,39 +52,65 @@ data:
     }
 
     sub rate_limit {
-        # Controlla se l'host termina con opencitations.net
+        # Check if host ends with opencitations.net
         if (req.http.host ~ "opencitations\.net$") {
-            # Salta il rate limiting per gli IP in whitelist
-            if (client.ip ~ whitelist) {
-                return;
-            }
-
-            # Applica rate limit globale per IP
-            if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-              if (vsthrottle.is_denied(client.ip, 240, 60s)) {
-                  # Aggiungi headers informativi prima del blocco
-                  set req.http.X-Rate-Limit-Exceeded = "true";
-                  set req.http.X-Rate-Limit = "100";
-                  set req.http.X-Rate-Window = "60";
-                  return (synth(429, "Too Many Requests"));
-              }
+            # Use real IP if available, otherwise fallback to client.ip
+            if (req.http.X-Real-IP) {
+                # Skip rate limiting for whitelisted IPs
+                if (std.ip(req.http.X-Real-IP, "0.0.0.0") ~ whitelist) {
+                    return;
+                }
+                # Apply rate limit using real IP
+                if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
+                    if (vsthrottle.is_denied(req.http.X-Real-IP, 240, 60s)) {
+                        # Add informative headers before blocking
+                        set req.http.X-Rate-Limit-Exceeded = "true";
+                        set req.http.X-Rate-Limit = "100";
+                        set req.http.X-Rate-Window = "60";
+                        return (synth(429, "Too Many Requests"));
+                    }
+                }
+            } else {
+                # Fallback to original behavior with client.ip
+                # Skip rate limiting for whitelisted IPs
+                if (client.ip ~ whitelist) {
+                    return;
+                }
+                # Apply global rate limit per IP
+                if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
+                    if (vsthrottle.is_denied(client.ip, 240, 60s)) {
+                        # Add informative headers before blocking
+                        set req.http.X-Rate-Limit-Exceeded = "true";
+                        set req.http.X-Rate-Limit = "100";
+                        set req.http.X-Rate-Window = "60";
+                        return (synth(429, "Too Many Requests"));
+                    }
+                }
             }
         }
     }
 
-    # ACL per gli IP in whitelist
+    # ACL for whitelisted IPs
     acl whitelist {
-        # Lista degli IP in whitelist
+        # List of whitelisted IPs
         "130.136.130.1";
         "137.204.166.210";
     }
 
-    # Gestione delle richieste in ingresso
+    # Handle incoming requests
     sub vcl_recv {
-        # Applica rate limiting
+        # Handle real IP from upstream proxy (Traefik)
+        if (req.http.X-Forwarded-For) {
+            # Get the first IP from X-Forwarded-For list (the real user IP)
+            set req.http.X-Real-IP = regsub(req.http.X-Forwarded-For, ",.*", "");
+            # Pass the real IP to the backend
+            set req.http.X-Forwarded-For = req.http.X-Real-IP;
+        }
+
+        # Apply rate limiting
         call rate_limit;
 
-        # Instradamento delle richieste al backend corretto
+        # Route requests to the correct backend
         #if (req.http.host == "k8s.opencitations.net") {
         #    set req.backend_hint = oc-old;
         if (req.http.host == "sparql.opencitations.net") {
@@ -103,7 +129,7 @@ data:
 
             # Check for WordPress authentication and admin cookies
             if (req.http.cookie) {
-                # Non cachare MAI se l'utente è loggato o ha cookie di amministrazione
+                # NEVER cache if user is logged in or has admin cookies
                 if (
                     req.http.cookie ~ "wordpress_logged_in_" ||
                     req.http.cookie ~ "wordpress_sec_" ||
@@ -117,12 +143,12 @@ data:
                     req.http.cookie ~ "wordpresspass_" ||
                     req.http.cookie ~ "wordpress_authenticated"
                 ) {
-                    # Marca la richiesta come intenzionalmente non cachata
+                    # Mark request as intentionally not cached
                     set req.http.X-Cache-Skip = "true";
                     return (pass);
                 }
 
-                # Per gli utenti non autenticati, rimuovi i cookie non necessari
+                # For non-authenticated users, remove unnecessary cookies
                 set req.http.cookie = regsuball(req.http.cookie, "wp-settings-\d+=[^;]+(; )?", "");
                 set req.http.cookie = regsuball(req.http.cookie, "wp-settings-time-\d+=[^;]+(; )?", "");
                 if (req.http.cookie == "") {
@@ -130,7 +156,7 @@ data:
                 }
             }
 
-            # Bypass cache per wp-admin, wp-login, e richieste POST
+            # Bypass cache for wp-admin, wp-login, and POST requests
             if (
                 req.url ~ "^/wp-(admin|login)" ||
                 req.method == "POST" ||
@@ -142,7 +168,7 @@ data:
                 req.url ~ "/my-account/" ||
                 req.url ~ "/addons/"
             ) {
-                # Marca la richiesta come intenzionalmente non cachata
+                # Mark request as intentionally not cached
                 set req.http.X-Cache-Skip = "true";
                 return (pass);
             }
@@ -150,23 +176,23 @@ data:
             return (synth(404, "Not Found"));
         }
         
-        # Per le chiamate API, ignora l'User-Agent e X-Device
+        # For API calls, ignore User-Agent and X-Device
         if (req.url ~ "/meta/v1/" || req.url ~ "/index/v1/" || req.url ~ "/index/v2/") {
             unset req.http.User-Agent;
             unset req.http.X-Device;
         }
         
-        # Gestione delle richieste GET e HEAD
+        # Handle GET and HEAD requests
         if (req.method == "GET" || req.method == "HEAD") {
             return (hash);
         } else {
-            # Marca le altre richieste come intenzionalmente non cachate
+            # Mark other requests as intentionally not cached
             set req.http.X-Cache-Skip = "true";
             return (pass);
         }
     }
 
-    # Generazione della chiave di hash
+    # Generate hash key
     sub vcl_hash {
         hash_data(req.url);
         hash_data(req.http.host);
@@ -178,9 +204,9 @@ data:
         return (lookup);
     }
 
-    # Gestione delle risposte dal backend
+    # Handle backend responses
     sub vcl_backend_response {
-        # Gestione delle risposte 4xx e 5xx
+        # Handle 4xx and 5xx responses
         if (beresp.status >= 400) {
             set beresp.ttl = 600s;
             set beresp.grace = 0s;
@@ -188,30 +214,30 @@ data:
             return (deliver);
         }
 
-        # Gestione specifica per WordPress
+        # Specific handling for WordPress
         if (bereq.url ~ "^/wp-" && bereq.url !~ "\.(css|js|png|gif|jp(e)?g)") {
             set beresp.ttl = 1h;
             set beresp.grace = 2h;
         }
 
-        # Non cachare pagine di amministrazione WordPress o risultati di ricerca
+        # Don't cache WordPress admin pages or search results
         if (bereq.url ~ "^/wp-(admin|login)|preview=true" || bereq.url ~ "/\\?s=") {
             set beresp.uncacheable = true;
             return (deliver);
         }
 
-        # Imposta TTL per diversi tipi di contenuto
+        # Set TTL for different content types
         if (bereq.url ~ "\.(css|js|png|gif|jp(e)?g|swf|ico)$") {
-            set beresp.ttl = 30d;  # Risorse statiche a 30 giorni
+            set beresp.ttl = 30d;  # Static resources for 30 days
         } elseif (bereq.url ~ "\.(html|woff|woff2|ttf|eot|json)$") {
-            set beresp.ttl = 10d;  # Altri file statici a 10 giorni
+            set beresp.ttl = 10d;  # Other static files for 10 days
         } elseif (bereq.url ~ "/meta/v1/" || bereq.url ~ "/index/v1/" || bereq.url ~ "/index/v2/") {
-            set beresp.ttl = 60d;  # API a 60 giorni
+            set beresp.ttl = 60d;  # API for 60 days
         } else {
-            set beresp.ttl = 1h;   # Contenuto dinamico a 1 ora
+            set beresp.ttl = 1h;   # Dynamic content for 1 hour
         }
 
-        # Rimuovi Set-Cookie per risorse statiche
+        # Remove Set-Cookie for static resources
         if (bereq.url ~ "\.(css|js|png|gif|jp(e)?g|swf|ico)$") {
             unset beresp.http.Set-Cookie;
         }
@@ -219,7 +245,7 @@ data:
         return (deliver);
     }
 
-    # Gestione degli errori del backend
+    # Handle backend errors
     sub vcl_backend_error {
         set beresp.http.Content-Type = "text/html; charset=utf-8";
         set beresp.http.Retry-After = "5";
@@ -244,9 +270,9 @@ data:
         return (deliver);
     }
 
-    # Consegna delle risposte al client
+    # Deliver responses to client
     sub vcl_deliver {
-        # Imposta l'header X-Cache in base al tipo di risposta
+        # Set X-Cache header based on response type
         if (obj.hits > 0) {
             set resp.http.X-Cache = "HIT";
         } elsif (req.http.X-Cache-Skip) {
@@ -255,16 +281,16 @@ data:
             set resp.http.X-Cache = "MISS";
         }
         
-        # Cambia l'header Server (Easter egg)
+        # Change Server header (Easter egg)
         set resp.http.Server = "Apache/2.4.10 (Win32)";
 
-        # Rimuovi headers non necessari per i client
+        # Remove unnecessary headers for clients
         unset resp.http.Via;
         unset resp.http.X-Powered-By;
-        # Rimuovi l'header di skip interno
+        # Remove internal skip header
         unset resp.http.X-Cache-Skip;
 
-        # Mantieni l'header X-Device se presente
+        # Keep X-Device header if present
         if (req.http.X-Device) {
             set resp.http.X-Device = req.http.X-Device;
         }
@@ -272,7 +298,7 @@ data:
         return (deliver);
     }
 
-    # Gestione degli errori sintetici
+    # Handle synthetic errors
     sub vcl_synth {
         set resp.http.Content-Type = "text/html; charset=utf-8";
         
@@ -345,89 +371,3 @@ data:
             synthetic("Too Many Requests");
         }
     }
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
- name: varnish
- namespace: default
- labels:
-   app: varnish
-spec:
- replicas: 2
- revisionHistoryLimit: 30
- progressDeadlineSeconds: 600
- selector:
-   matchLabels:
-     app: varnish
- strategy:
-   type: RollingUpdate
- template:
-   metadata:
-     labels:
-       app: varnish 
-   spec:
-     containers:
-       - name: varnish
-         image: varnish:7.6.0
-         imagePullPolicy: Always
-         securityContext:
-           capabilities:
-             add: ["IPC_LOCK"]
-         args:
-           - varnishd
-           - '-F'
-           - '-a'
-           - ':80'
-           - '-f'
-           - /etc/varnish/default.vcl
-           - '-s'
-           - malloc,8g
-         ports:
-           - containerPort: 80
-             protocol: TCP
-         resources:
-           limits:
-             memory: 10Gi
-           requests:
-             memory: 10Gi
-         volumeMounts:
-           - name: varnish-config
-             mountPath: /etc/varnish
-     volumes:
-       - name: varnish-config
-         configMap:
-           name: varnish-config
-           defaultMode: 420
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: varnish-service
-  namespace: default
-  labels:
-    app: varnish
-spec:
-  selector:
-    app: varnish
-  ports:
-    - port: 80
-      targetPort: 80
-      protocol: TCP
-      name: http
-  type: ClusterIP
-
----
-
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: redirect-to-https
-  namespace: default
-spec:
-  redirectScheme:
-    scheme: https
-    permanent: true
-    port: "443"
