@@ -34,11 +34,16 @@ spec:
             - name: VIRTUOSO_PASSWORD
               value: ${VIRTUOSO_DBA_PASSWORD}
           resources: {}
+          volumeMounts:
+            - name: log-storage
+              mountPath: /mnt/log_dir
+      volumes:
+        - name: log-storage
+          persistentVolumeClaim:
+            claimName: nfs-log-dir-claim
       dnsPolicy: ClusterFirst
       restartPolicy: Always
-
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -55,9 +60,7 @@ spec:
      protocol: TCP
      targetPort: 8080
  type: ClusterIP
-
 ---
-
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -70,15 +73,13 @@ spec:
    - websecure
  routes:
    - kind: Rule
-     match: Host(`api.opencitations.net`)
+     match: Host(`${API_BASE_URL}`)
      services:
        - name: varnish-service
          port: 80
  tls:
    certResolver: myresolver
-
 ---
-
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -91,7 +92,7 @@ spec:
    - web
  routes:
    - kind: Rule
-     match: Host(`api.opencitations.net`)
+     match: Host(`${API_BASE_URL}`)
      middlewares:
        - name: redirect-to-https
      services:
