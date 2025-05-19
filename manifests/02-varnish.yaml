@@ -107,6 +107,13 @@ data:
             set req.http.X-Forwarded-For = req.http.X-Real-IP;
         }
 
+        # Handle CORS preflight requests
+        if (req.method == "OPTIONS") {
+            # Allow all origins for preflight
+            set req.http.X-CORS-Preflight = "true";
+            return (synth(200, "OK"));
+        }
+
         # Apply rate limiting
         call rate_limit;
 
@@ -272,6 +279,19 @@ data:
 
     # Deliver responses to client
     sub vcl_deliver {
+        # Add CORS headers for API and SPARQL requests
+        if (req.http.host == "api.opencitations.net" || req.http.host == "sparql.opencitations.net") {
+            # Allow specific origins or all origins
+            if (req.http.Origin) {
+                set resp.http.Access-Control-Allow-Origin = req.http.Origin;
+            } else {
+                set resp.http.Access-Control-Allow-Origin = "*";
+            }
+            set resp.http.Access-Control-Allow-Methods = "GET, POST, OPTIONS";
+            set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept";
+            set resp.http.Access-Control-Max-Age = "3600";
+        }
+
         # Set X-Cache header based on response type
         if (obj.hits > 0) {
             set resp.http.X-Cache = "HIT";
@@ -300,6 +320,17 @@ data:
 
     # Handle synthetic errors
     sub vcl_synth {
+        # Handle CORS preflight responses
+        if (req.http.X-CORS-Preflight == "true") {
+            set resp.http.Content-Type = "text/plain";
+            set resp.http.Access-Control-Allow-Origin = "*";
+            set resp.http.Access-Control-Allow-Methods = "GET, POST, OPTIONS";
+            set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept";
+            set resp.http.Access-Control-Max-Age = "3600";
+            set resp.body = "";
+            return (deliver);
+        }
+
         set resp.http.Content-Type = "text/html; charset=utf-8";
         
         if (resp.status == 429) {
