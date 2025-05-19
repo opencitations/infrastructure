@@ -155,6 +155,18 @@ spec:
     permanent: true
 
 ---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: download-redirect
+spec:
+  redirectRegex:
+    regex: .*/download(s)?
+    replacement: https://download.opencitations.net
+    permanent: true
+
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -186,6 +198,7 @@ spec:
       match: Host(`${WORDPRESS_DOMAIN}`)
       middlewares:
         - name: api-redirects
+        - name: download-redirect
       services:
         - name: varnish-service
           port: 80
