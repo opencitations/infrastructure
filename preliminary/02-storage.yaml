@@ -57,3 +57,32 @@ spec:
       storage: 5Gi
   volumeName: nfs-certificates
 ####
+
+# Log directory configurations
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nfs-log-dir
+spec:
+  capacity:
+    storage: 500Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    path: "${NFS_LOG_PATH}"
+    server: "${NFS_SERVER}"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nfs-log-dir-claim
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 500Gi
+  volumeName: nfs-log-dir
