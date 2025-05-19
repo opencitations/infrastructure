@@ -77,7 +77,7 @@ spec:
    - websecure
  routes:
    - kind: Rule
-     match: Host(`${SPARQL_WEBSITE_VERSION}`)
+     match: Host(`${SPARQL_BASE_URL}`)
      services:
        - name: varnish-service
          port: 80
@@ -96,7 +96,7 @@ spec:
    - web
  routes:
    - kind: Rule
-     match: Host(`${SPARQL_WEBSITE_VERSION}`)
+     match: Host(`${SPARQL_BASE_URL}`)
      middlewares:
        - name: redirect-to-https
      services:
