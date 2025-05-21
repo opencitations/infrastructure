@@ -62,7 +62,7 @@ data:
                 }
                 # Apply rate limit using real IP
                 if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-                    if (vsthrottle.is_denied(req.http.X-Real-IP, 240, 60s)) {
+                    if (vsthrottle.is_denied(req.http.X-Real-IP, 280, 60s)) {
                         # Add informative headers before blocking
                         set req.http.X-Rate-Limit-Exceeded = "true";
                         set req.http.X-Rate-Limit = "100";
@@ -78,7 +78,7 @@ data:
                 }
                 # Apply global rate limit per IP
                 if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-                    if (vsthrottle.is_denied(client.ip, 240, 60s)) {
+                    if (vsthrottle.is_denied(client.ip, 280, 60s)) {
                         # Add informative headers before blocking
                         set req.http.X-Rate-Limit-Exceeded = "true";
                         set req.http.X-Rate-Limit = "100";
@@ -95,6 +95,9 @@ data:
         # List of whitelisted IPs
         "130.136.130.1";
         "137.204.166.210";
+        "10.0.0.0"/8;
+        "172.16.0.0"/12;
+        "192.168.0.0"/16;
     }
 
     # Handle incoming requests
