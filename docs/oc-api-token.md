@@ -625,7 +625,7 @@ class OpenCitationsTokenRequest {
         .content { background: #ffffff; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #ddd; }
         .token-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 20px; margin: 20px 0; text-align: center; }
         .token { font-family: Consolas, "Courier New", monospace; font-size: 16px; font-weight: bold; color: #333; word-break: break-all; background: #e9ecef; padding: 10px; border-radius: 4px; }
-        .code-block { background: #f8f9fa; color: #333; padding: 15px; border-radius: 6px; margin: 15px 0; font-family: Consolas, "Courier New", monospace; font-size: 14px; overflow-x: auto; border: 1px solid #dee2e6; }
+        .code-block { background: #f8f9fa; color: #333; padding: 15px; border-radius: 6px; margin: 15px 0; font-family: Consolas, "Courier New", monospace; font-size: 14px; overflow-x: auto; border: 1px solid #dee2e6; white-space: pre-wrap; word-wrap: break-word; }
         .highlight { background: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0; border-radius: 4px; }
         .footer { text-align: left; margin-top: 30px; padding: 20px 0; color: #666; font-size: 14px; border-top: 1px solid #eee; }
         ul { padding-left: 20px; }
@@ -656,10 +656,10 @@ class OpenCitationsTokenRequest {
         <p>When making API calls to OpenCitations, include this token in the authorization header:</p>
         
         <strong>Example in Python:</strong>
-        <div class="code-block">import requests
-
-headers = {&quot;authorization&quot;: &quot;' . esc_html($token) . '&quot;}
-response = requests.get(&quot;https://api.opencitations.net/meta/v1/metadata/doi:10.1162/qss_a_00023&quot;, headers=headers)</div>
+        <div class="code-block">import requests<br>
+    headers = {&quot;authorization&quot;: &quot;' . esc_html($token) . '&quot;}<br>
+    response = requests.get(&quot;https://api.opencitations.net/meta/v1/metadata/doi:10.1162/qss_a_00023&quot;, headers=headers)
+        </div>
         
         <strong>Example in curl:</strong>
         <div class="code-block">curl -H &quot;authorization: ' . esc_html($token) . '&quot; &quot;https://api.opencitations.net/meta/v1/metadata/doi:10.1162/qss_a_00023&quot;</div>
