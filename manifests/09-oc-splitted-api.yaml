@@ -25,6 +25,16 @@ spec:
           env:
             - name: API_BASE_URL
               value: "${API_BASE_URL}"
+            - name: REDIS_ENABLED
+              value: "${REDIS_ENABLED}"
+            - name: REDIS_HOST
+              value: "${REDIS_HOST}"
+            - name: REDIS_PORT
+              value: '6379'
+            - name: REDIS_PASSWORD
+              value: "${REDIS_PWD}"
+            - name: REDIS_DB
+              value: '${REDIS_DB}'
             - name: VIRTUOSO_HOST
               value: ${VIRTUOSO_SERVICE_NAME}
             - name: VIRTUOSO_PORT

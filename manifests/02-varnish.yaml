@@ -225,7 +225,7 @@ data:
     sub vcl_backend_response {
         # Handle 4xx and 5xx responses
         if (beresp.status >= 400) {
-            set beresp.ttl = 600s;
+            set beresp.ttl = 200s;
             set beresp.grace = 0s;
             set beresp.keep = 0s;
             return (deliver);
