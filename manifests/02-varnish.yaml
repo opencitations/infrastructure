@@ -134,6 +134,13 @@ data:
             return (pass); 
         } elsif (req.http.host == "api.opencitations.net") {
             set req.backend_hint = api;
+            
+            # If Authorization header is present, bypass cache and go directly to backend
+            if (req.http.Authorization) {
+                return (pass);
+            }
+            # No Authorization header - allow normal caching behavior
+            
         } elsif (req.http.host == "${WORDPRESS_DOMAIN}") {
             set req.backend_hint = wordpress;
 
@@ -405,3 +412,89 @@ data:
             synthetic("Too Many Requests");
         }
     }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: varnish
+ namespace: default
+ labels:
+   app: varnish
+spec:
+ replicas: 2
+ revisionHistoryLimit: 30
+ progressDeadlineSeconds: 600
+ selector:
+   matchLabels:
+     app: varnish
+ strategy:
+   type: RollingUpdate
+ template:
+   metadata:
+     labels:
+       app: varnish 
+   spec:
+     containers:
+       - name: varnish
+         image: varnish:7.6.0
+         imagePullPolicy: Always
+         securityContext:
+           capabilities:
+             add: ["IPC_LOCK"]
+         args:
+           - varnishd
+           - '-F'
+           - '-a'
+           - ':80'
+           - '-f'
+           - /etc/varnish/default.vcl
+           - '-s'
+           - malloc,8g
+         ports:
+           - containerPort: 80
+             protocol: TCP
+         resources:
+           limits:
+             memory: 10Gi
+           requests:
+             memory: 10Gi
+         volumeMounts:
+           - name: varnish-config
+             mountPath: /etc/varnish
+     volumes:
+       - name: varnish-config
+         configMap:
+           name: varnish-config
+           defaultMode: 420
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: varnish-service
+  namespace: default
+  labels:
+    app: varnish
+spec:
+  selector:
+    app: varnish
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+  type: ClusterIP
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-to-https
+  namespace: default
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+    port: "443"
