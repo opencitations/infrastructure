@@ -51,10 +51,10 @@ spec:
             - $(REDIS_PASSWORD)
           resources:
             limits:
-              memory: 32Gi
+              memory: 64Gi
             requests:
-              cpu: 500m
-              memory: 4000Mi
+              cpu: 2
+              memory: 16Gi
           volumeMounts:
             - name: redis-data
               mountPath: /data
