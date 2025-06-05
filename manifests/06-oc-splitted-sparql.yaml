@@ -6,6 +6,7 @@ metadata:
   labels:
     app: oc-sparql
 spec:
+  replicas: 3
   selector:
     matchLabels:
       app: oc-sparql

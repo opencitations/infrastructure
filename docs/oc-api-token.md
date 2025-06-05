@@ -634,6 +634,10 @@ class OpenCitationsTokenRequest {
     </style>
 </head>
 <body>
+    <h4>***If you weren\'t expecting this email or didn\'t sign up for it, feel free to delete it and take no further action.***</>
+
+
+    
     <div class="header">
         <h1>Your OpenCitations Access Token</h1>
     </div>
