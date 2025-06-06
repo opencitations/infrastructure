@@ -7,7 +7,7 @@ metadata:
     app: index-db-qlever
     instance: qlever-1
 spec:
-  serviceName: ${QLEVER_SERVICE_NAME}
+  serviceName: ${INDEX_SERVICE_NAME}
   replicas: 1
   selector:
     matchLabels:
@@ -48,8 +48,8 @@ spec:
             failureThreshold: 2
           resources:
             requests:
-              cpu: ${QLEVER_CPU_REQUEST}
-              memory: ${QLEVER_MEMORY_REQUEST}
+              cpu: ${INDEX_CPU_REQUEST}
+              memory: ${INDEX_MEMORY_REQUEST}
           lifecycle:
             preStop:
               exec:
@@ -80,7 +80,7 @@ metadata:
     app: index-db-qlever
     instance: qlever-2
 spec:
-  serviceName: ${QLEVER_SERVICE_NAME}
+  serviceName: ${INDEX_SERVICE_NAME}
   replicas: 1
   selector:
     matchLabels:
@@ -121,8 +121,8 @@ spec:
             failureThreshold: 2
           resources:
             requests:
-              cpu: ${QLEVER_CPU_REQUEST}
-              memory: ${QLEVER_MEMORY_REQUEST}
+              cpu: ${INDEX_CPU_REQUEST}
+              memory: ${INDEX_MEMORY_REQUEST}
           lifecycle:
             preStop:
               exec:
@@ -147,7 +147,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ${QLEVER_SERVICE_NAME}
+  name: ${INDEX_SERVICE_NAME}
   namespace: default
 spec:
   type: LoadBalancer

@@ -1,39 +1,49 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: oc-download
+  name: oc-api
   namespace: default
   labels:
-    app: oc-download
+    app: oc-api
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: oc-download
+      app: oc-api
   template:
     metadata:
       labels:
-        app: oc-download
+        app: oc-api
     spec:
       containers:
-        - name: oc-download
-          image: opencitations/oc_download:${DOWNLOAD_WEBSITE_VERSION}
+        - name: oc-api
+          image: opencitations/oc_api:${API_WEBSITE_VERSION}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
               protocol: TCP
           env:
-            - name: DOWNLOAD_BASE_URL
-              value: "${DOWNLOAD_BASE_URL}"
-            - name: VIRTUOSO_HOST
-              value: ${VIRTUOSO_SERVICE_NAME}
-            - name: VIRTUOSO_PORT
+            - name: API_BASE_URL
+              value: "${API_BASE_URL}"
+            - name: REDIS_ENABLED
+              value: "${REDIS_ENABLED}"
+            - name: REDIS_HOST
+              value: "${REDIS_HOST}"
+            - name: REDIS_PORT
+              value: '6379'
+            - name: REDIS_PASSWORD
+              value: "${REDIS_PWD}"
+            - name: REDIS_DB
+              value: '${REDIS_DB}'
+            - name: META_HOST
+              value: ${META_SERVICE_NAME}
+            - name: META_PORT
               value: '1111'
-            - name: VIRTUOSO_USER
-              value: ${VIRTUOSO_USER}
-            - name: VIRTUOSO_PASSWORD
-              value: ${VIRTUOSO_DBA_PASSWORD}
+            - name: META_USER
+              value: ${META_USER}
+            - name: META_PASSWORD
+              value: ${META_DBA_PASSWORD}
           resources: {}
           volumeMounts:
             - name: log-storage
@@ -48,13 +58,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
- name: oc-download-service
+ name: oc-api-service
  namespace: default
  labels:
-   app: oc-download
+   app: oc-api
 spec:
  selector:
-   app: oc-download
+   app: oc-api
  ports:
    - name: http
      port: 80
@@ -65,16 +75,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
- name: oc-download
+ name: oc-api
  namespace: default
  labels:
-   app: oc-download
+   app: oc-api
 spec:
  entryPoints:
    - websecure
  routes:
    - kind: Rule
-     match: Host(`${DOWNLOAD_BASE_URL}`)
+     match: Host(`${API_BASE_URL}`)
      services:
        - name: varnish-service
          port: 80
@@ -84,16 +94,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
- name: oc-download-http-only
+ name: oc-api-http-only
  namespace: default
  labels:
-   app: oc-download
+   app: oc-api
 spec:
  entryPoints:
    - web
  routes:
    - kind: Rule
-     match: Host(`${DOWNLOAD_BASE_URL}`)
+     match: Host(`${API_BASE_URL}`)
      middlewares:
        - name: redirect-to-https
      services:

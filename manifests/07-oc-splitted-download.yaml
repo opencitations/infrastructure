@@ -1,43 +1,39 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: oc-sparql
+  name: oc-download
   namespace: default
   labels:
-    app: oc-sparql
+    app: oc-download
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: oc-sparql
+      app: oc-download
   template:
     metadata:
       labels:
-        app: oc-sparql
+        app: oc-download
     spec:
       containers:
-        - name: oc-sparql
-          image: opencitations/oc_sparql:${SPARQL_WEBSITE_VERSION}
+        - name: oc-download
+          image: opencitations/oc_download:${DOWNLOAD_WEBSITE_VERSION}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
               protocol: TCP
           env:
-            - name: SPARQL_BASE_URL
-              value: "${SPARQL_BASE_URL}"
-            - name: SPARQL_ENDPOINT_INDEX
-              value: "${SPARQL_ENDPOINT_INDEX}"
-            - name: SPARQL_ENDPOINT_META
-              value: "${SPARQL_ENDPOINT_META}"
-            - name: VIRTUOSO_HOST
-              value: ${VIRTUOSO_SERVICE_NAME}
-            - name: VIRTUOSO_PORT
+            - name: DOWNLOAD_BASE_URL
+              value: "${DOWNLOAD_BASE_URL}"
+            - name: META_HOST
+              value: ${META_SERVICE_NAME}
+            - name: META_PORT
               value: '1111'
-            - name: VIRTUOSO_USER
-              value: ${VIRTUOSO_USER}
-            - name: VIRTUOSO_PASSWORD
-              value: ${VIRTUOSO_DBA_PASSWORD}
+            - name: META_USER
+              value: ${META_USER}
+            - name: META_PASSWORD
+              value: ${META_DBA_PASSWORD}
           resources: {}
           volumeMounts:
             - name: log-storage
@@ -52,13 +48,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
- name: oc-sparql-service
+ name: oc-download-service
  namespace: default
  labels:
-   app: oc-sparql
+   app: oc-download
 spec:
  selector:
-   app: oc-sparql
+   app: oc-download
  ports:
    - name: http
      port: 80
@@ -69,16 +65,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
- name: oc-sparql
+ name: oc-download
  namespace: default
  labels:
-   app: oc-sparql
+   app: oc-download
 spec:
  entryPoints:
    - websecure
  routes:
    - kind: Rule
-     match: Host(`${SPARQL_BASE_URL}`)
+     match: Host(`${DOWNLOAD_BASE_URL}`)
      services:
        - name: varnish-service
          port: 80
@@ -88,16 +84,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
- name: oc-sparql-http-only
+ name: oc-download-http-only
  namespace: default
  labels:
-   app: oc-sparql
+   app: oc-download
 spec:
  entryPoints:
    - web
  routes:
    - kind: Rule
-     match: Host(`${SPARQL_BASE_URL}`)
+     match: Host(`${DOWNLOAD_BASE_URL}`)
      middlewares:
        - name: redirect-to-https
      services:

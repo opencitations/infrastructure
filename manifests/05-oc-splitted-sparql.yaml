@@ -1,49 +1,43 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: oc-api
+  name: oc-sparql
   namespace: default
   labels:
-    app: oc-api
+    app: oc-sparql
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: oc-api
+      app: oc-sparql
   template:
     metadata:
       labels:
-        app: oc-api
+        app: oc-sparql
     spec:
       containers:
-        - name: oc-api
-          image: opencitations/oc_api:${API_WEBSITE_VERSION}
+        - name: oc-sparql
+          image: opencitations/oc_sparql:${SPARQL_WEBSITE_VERSION}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
               protocol: TCP
           env:
-            - name: API_BASE_URL
-              value: "${API_BASE_URL}"
-            - name: REDIS_ENABLED
-              value: "${REDIS_ENABLED}"
-            - name: REDIS_HOST
-              value: "${REDIS_HOST}"
-            - name: REDIS_PORT
-              value: '6379'
-            - name: REDIS_PASSWORD
-              value: "${REDIS_PWD}"
-            - name: REDIS_DB
-              value: '${REDIS_DB}'
-            - name: VIRTUOSO_HOST
-              value: ${VIRTUOSO_SERVICE_NAME}
-            - name: VIRTUOSO_PORT
+            - name: SPARQL_BASE_URL
+              value: "${SPARQL_BASE_URL}"
+            - name: SPARQL_ENDPOINT_INDEX
+              value: "${SPARQL_ENDPOINT_INDEX}"
+            - name: SPARQL_ENDPOINT_META
+              value: "${SPARQL_ENDPOINT_META}"
+            - name: META_HOST
+              value: ${META_SERVICE_NAME}
+            - name: META_PORT
               value: '1111'
-            - name: VIRTUOSO_USER
-              value: ${VIRTUOSO_USER}
-            - name: VIRTUOSO_PASSWORD
-              value: ${VIRTUOSO_DBA_PASSWORD}
+            - name: META_USER
+              value: ${META_USER}
+            - name: META_PASSWORD
+              value: ${META_DBA_PASSWORD}
           resources: {}
           volumeMounts:
             - name: log-storage
@@ -58,13 +52,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
- name: oc-api-service
+ name: oc-sparql-service
  namespace: default
  labels:
-   app: oc-api
+   app: oc-sparql
 spec:
  selector:
-   app: oc-api
+   app: oc-sparql
  ports:
    - name: http
      port: 80
@@ -75,16 +69,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
- name: oc-api
+ name: oc-sparql
  namespace: default
  labels:
-   app: oc-api
+   app: oc-sparql
 spec:
  entryPoints:
    - websecure
  routes:
    - kind: Rule
-     match: Host(`${API_BASE_URL}`)
+     match: Host(`${SPARQL_BASE_URL}`)
      services:
        - name: varnish-service
          port: 80
@@ -94,16 +88,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
- name: oc-api-http-only
+ name: oc-sparql-http-only
  namespace: default
  labels:
-   app: oc-api
+   app: oc-sparql
 spec:
  entryPoints:
    - web
  routes:
    - kind: Rule
-     match: Host(`${API_BASE_URL}`)
+     match: Host(`${SPARQL_BASE_URL}`)
      middlewares:
        - name: redirect-to-https
      services:

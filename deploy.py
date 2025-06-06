@@ -7,8 +7,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 import shutil
 import time
-import datetime  # Added for timestamp generation
-import yaml      # Added for YAML validation
+import datetime  
+import yaml
 import git
 
 def check_helm_installation():
@@ -23,24 +23,6 @@ def check_helm_installation():
     else:
         print("Helm is already installed")
 
-'''
-def load_environment():
-    """Load environment variables from .env file"""
-    if not os.path.exists('.env'):
-        print("Error: .env file not found")
-        print("Please copy .env.example to .env and set your values")
-        sys.exit(1)
-    
-    env_vars = {}
-    with open('.env', 'r') as file:
-        for line in file:
-            # Ignora le righe vuote o i commenti
-            line = line.strip()
-            if line and not line.startswith('#'):
-                key, value = line.split('=', 1)
-                env_vars[key.strip()] = value.strip()
-    return env_vars
-'''
 def load_environment():
     """Load environment variables from .env file and process computed variables"""
     if not os.path.exists('.env'):
@@ -51,7 +33,7 @@ def load_environment():
     env_vars = {}
     computed_vars = {}
     
-    # Prima passiamo il file per raccogliere le definizioni
+    # First pass to collect variable definitions
     with open('.env', 'r') as file:
         for line in file:
             line = line.strip()
@@ -60,25 +42,25 @@ def load_environment():
                 key = key.strip()
                 value = value.strip()
                 
-                # Se il valore contiene un'espressione con '+'
+                # Check if value contains an expression with '+'
                 if '+' in value:
                     computed_vars[key] = value
                 else:
                     env_vars[key] = value
     
-    # Ora processiamo le variabili computate
+    # Now process the computed variables
     for key, expression in computed_vars.items():
-        # Dividiamo l'espressione in parti
+        # Split expression into its component parts
         parts = [p.strip() for p in expression.split('+')]
         
-        # Processiamo ogni parte
+        # Process each part
         processed_parts = []
         for part in parts:
-            # Se la parte è una stringa letterale (tra apici)
+            # Check if part is a literal string (in quotes)
             if (part.startswith("'") and part.endswith("'")) or \
                (part.startswith('"') and part.endswith('"')):
                 processed_parts.append(part.strip("'\""))
-            # Se è un riferimento a una variabile
+            # Check if part references another variable
             else:
                 var_name = part.strip()
                 if var_name in env_vars:
@@ -87,7 +69,7 @@ def load_environment():
                     print(f"Warning: Variable {var_name} referenced in {key} not found")
                     processed_parts.append("")
         
-        # Combiniamo le parti
+        # Combine all parts into final value
         env_vars[key] = ''.join(processed_parts)
     
     return env_vars
@@ -619,8 +601,8 @@ Fleet creation complete!
 
 def show_changes(original_files, new_files):
     """
-    Mostra le differenze tra i file originali e quelli nuovi, in stile Terraform.
-    Evidenzia aggiunte, modifiche e rimozioni.
+    Shows the differences between the original and new files.
+    Highlights additions, modifications, and removals.
     """
     changes = {
         'add': [],      # File nuovi
@@ -628,19 +610,19 @@ def show_changes(original_files, new_files):
         'remove': []    # File rimossi
     }
     
-    # Controlla file nuovi e modificati
+    # Check for new and modified files
     for new_file in new_files:
         if new_file not in original_files:
             changes['add'].append(new_file)
         elif original_files[new_file] != new_files[new_file]:
             changes['modify'].append(new_file)
     
-    # Controlla file rimossi
+    # Check for removed files
     for old_file in original_files:
         if old_file not in new_files:
             changes['remove'].append(old_file)
             
-    # Stampa il resoconto delle modifiche in stile Terraform
+    # Display changes summary
     print("\nChanges to be applied:")
     print("=====================")
     
@@ -667,9 +649,9 @@ def show_changes(original_files, new_files):
 
 def create_production_files_and_push(output_dir="production-ready"):
     """
-    Crea file di produzione e li push su una repository privata nel branch `main`,
-    mostrando prima un piano delle modifiche in stile Terraform.
-    Gestisce anche la rimozione di file non più presenti nei manifesti locali.
+    Creates production files and pushes them to a private repository on the `main` branch,
+    showing a change plan first.
+    It also handles the removal of files that are no longer present in the local manifests.
     """
     repo_path = Path("/tmp/private-repo")
     
@@ -677,11 +659,11 @@ def create_production_files_and_push(output_dir="production-ready"):
         print("\nInitializing Fleet Production Process...")
         print("=====================================")
 
-        # Carica variabili d'ambiente
+        # Load environment variables
         print("\n1. Loading environment variables...")
         env_vars = load_environment()
         
-        # Verifica credenziali git
+        # Verify git credentials
         private_repo_url = env_vars.get("PRIVATE_REPO_URL")
         git_username = env_vars.get("GIT_USERNAME")
         git_token = env_vars.get("GIT_TOKEN")
@@ -694,38 +676,38 @@ def create_production_files_and_push(output_dir="production-ready"):
         auth_repo_url = private_repo_url.replace("https://", f"https://{git_username}:{git_token}@")
         branch_name = "main"
 
-        # Prepara directory di output
+        # Prepare output directory
         output_path = Path(output_dir)
         output_path.mkdir(exist_ok=True)
 
-        # Clona repository per confronto
+        # Clone repository for comparison
         print("\n2. Preparing change detection...")
         if repo_path.exists():
             shutil.rmtree(repo_path)
         repo = git.Repo.clone_from(auth_repo_url, repo_path)
         repo.git.checkout(branch_name)
 
-        # Leggi i file esistenti nella repository remota
+        # Read existing files from remote repository
         existing_files = {
             yaml_file.name: yaml_file.read_text()
             for yaml_file in repo_path.glob("*.yaml")
         }
 
-        # Processa i nuovi file dai manifesti locali
+        # Process new files from local manifests
         print("\n3. Processing manifest files...")
         new_files = {}
         manifest_files = list(Path('manifests').glob('*.yaml'))
         
-        # Lista dei file presenti nei manifesti locali
+        # List of files present in local manifests
         local_manifest_names = set(source_file.name for source_file in manifest_files)
         
-        # Identifica file da rimuovere (presenti nel repo ma non nei manifesti locali)
+        # Identify files to remove (present in repo but not in local manifests)
         files_to_remove = set(existing_files.keys()) - local_manifest_names
         
         for source_file in manifest_files:
             try:
                 processed_content = process_yaml(str(source_file), env_vars)
-                # Valida YAML
+                # Validate YAML
                 try:
                     list(yaml.safe_load_all(processed_content))
                     new_files[source_file.name] = processed_content
@@ -736,10 +718,10 @@ def create_production_files_and_push(output_dir="production-ready"):
             except Exception as e:
                 print(f"✗ Error processing {source_file.name}: {str(e)}")
 
-        # Mostra piano delle modifiche con rimozioni
+        # Show change plan including removals
         print("\n4. Generating change plan...")
         if not show_changes(existing_files, new_files):
-            # Mostra comunque i file da rimuovere se ce ne sono
+            # Show removal files if any
             if files_to_remove:
                 print("\nFiles to be removed:")
                 for file_to_remove in files_to_remove:
@@ -748,34 +730,34 @@ def create_production_files_and_push(output_dir="production-ready"):
                 print("\nNo changes to apply.")
                 return
 
-        # Chiedi conferma
+        # Request user confirmation
         if not confirm("\nDo you want to apply these changes? [y/N] "):
             print("\nOperation cancelled.")
             return
 
-        # Applica le modifiche
+        # Apply changes
         print("\n5. Applying changes...")
         
-        # Pulisci directory di output
+        # Clean output directory
         for file in output_path.glob("*.yaml"):
             file.unlink()
         
-        # Scrivi i nuovi file
+        # Write new files
         for filename, content in new_files.items():
             (output_path / filename).write_text(content)
             print(f"✓ Created: {filename}")
 
-        # Copia in repository e gestisci rimozioni
+        # Copy to repository and handle removals
         print("\n6. Updating repository...")
         
-        # Rimuovi i file non più presenti nei manifesti locali
+        # Remove files no longer present in local manifests
         for file_to_remove in files_to_remove:
             file_path = repo_path / file_to_remove
             if file_path.exists():
                 file_path.unlink()
                 print(f"✓ Removed: {file_to_remove}")
 
-        # Copia i nuovi file
+        # Copy new files
         for file in output_path.glob("*.yaml"):
             shutil.copy(file, repo_path / file.name)
 
@@ -806,7 +788,7 @@ Fleet operation completed successfully!
         print(f"\nError during operation: {str(e)}")
         sys.exit(1)
     finally:
-        # Pulizia
+        # Cleanup
         if repo_path.exists():
             shutil.rmtree(repo_path)
 

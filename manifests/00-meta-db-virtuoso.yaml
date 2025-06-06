@@ -7,7 +7,7 @@ metadata:
     app: meta-db-virtuoso
     instance: virtuoso-1
 spec:
-  serviceName: ${VIRTUOSO_SERVICE_NAME}
+  serviceName: ${META_SERVICE_NAME}
   replicas: 1
   selector:
     matchLabels:
@@ -25,7 +25,7 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: DBA_PASSWORD
-              value: "${VIRTUOSO_DBA_PASSWORD}"
+              value: "${META_DBA_PASSWORD}"
           ports:
             - containerPort: 1111
               protocol: TCP
@@ -50,8 +50,8 @@ spec:
             failureThreshold: 2
           resources:
             requests:
-              cpu: ${VIRTUOSO_CPU_REQUEST}
-              memory: ${VIRTUOSO_MEMORY_REQUEST}
+              cpu: ${META_CPU_REQUEST}
+              memory: ${META_MEMORY_REQUEST}
           lifecycle:
             preStop:
               exec:
@@ -62,7 +62,7 @@ spec:
           volumeMounts:
             - mountPath: /database
               name: virtuoso-storage
-              subPath: ${VIRTUOSO_DB_SUBPATH}
+              subPath: ${META_DB_SUBPATH}
       volumes:
         - name: virtuoso-storage
           persistentVolumeClaim:
@@ -78,7 +78,7 @@ metadata:
     app: meta-db-virtuoso
     instance: virtuoso-2
 spec:
-  serviceName: ${VIRTUOSO_SERVICE_NAME}
+  serviceName: ${META_SERVICE_NAME}
   replicas: 1
   selector:
     matchLabels:
@@ -96,7 +96,7 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: DBA_PASSWORD
-              value: "${VIRTUOSO_DBA_PASSWORD}"
+              value: "${META_DBA_PASSWORD}"
           ports:
             - containerPort: 1111
               protocol: TCP
@@ -106,8 +106,8 @@ spec:
               name: sparql
           resources:
             requests:
-              cpu: ${VIRTUOSO_CPU_REQUEST}
-              memory: ${VIRTUOSO_MEMORY_REQUEST}
+              cpu: ${META_CPU_REQUEST}
+              memory: ${META_MEMORY_REQUEST}
           lifecycle:
             preStop:
               exec:
@@ -118,7 +118,7 @@ spec:
           volumeMounts:
             - mountPath: /database
               name: virtuoso-storage
-              subPath: ${VIRTUOSO_DB_SUBPATH_2}
+              subPath: ${META_DB_SUBPATH_2}
       volumes:
         - name: virtuoso-storage
           persistentVolumeClaim:
@@ -128,7 +128,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ${VIRTUOSO_SERVICE_NAME}
+  name: ${META_SERVICE_NAME}
   namespace: default
 spec:
   type: LoadBalancer

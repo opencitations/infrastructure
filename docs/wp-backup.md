@@ -73,7 +73,7 @@ RCLONE_CONFIG=your_base64_encoded_config_here
 
 Deploy the backup system:
 ```bash
-./deploy.py manifests/04-wordpress-backup.yaml
+python3.11 ./deploy.py manifests/04-wordpress-backup.yaml
 ```
 
 ## Monitoring and Management
