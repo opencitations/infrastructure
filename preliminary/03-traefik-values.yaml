@@ -1,15 +1,25 @@
 #### Comment this sections if you are not using HTTPS with ACME
 additionalArguments:
-  # - '--certificatesResolvers.gandi.acme.dnsChallenge.provider=gandiv5'
-  # - '--certificatesResolvers.gandi.acme.email=${ACME_EMAIL}'
-  # - '--certificatesResolvers.gandi.acme.dnsChallenge.resolvers=8.8.8.8:53,8.8.4.4:53'
-  # - '--certificatesResolvers.gandi.acme.storage=/acme/lets_encrypt/gandi/acme_dnsresolve.json'
   - '--certificatesResolvers.myresolver.acme.httpChallenge.entryPoint=web'
   - '--certificatesResolvers.myresolver.acme.email=${ACME_EMAIL}'
   - '--certificatesResolvers.myresolver.acme.storage=${ACME_PATH}'
   - '--entrypoints.web.forwardedHeaders.trustedIPs=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
   - '--entrypoints.websecure.forwardedHeaders.trustedIPs=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16'
-  - "--log.level=INFO"
+  - '--log.level=INFO'
+  - '--accesslog.filepath=/var/log/traefik/traefik-access.log'
+  - '--accesslog.format=json'
+  - '--accesslog.fields.defaultmode=drop'
+  - '--accesslog.fields.headers.defaultmode=drop'
+  - '--accesslog.fields.names.ClientHost=keep'
+  - '--accesslog.fields.names.DownstreamStatus=keep'
+  - '--accesslog.fields.names.RequestHost=keep'
+  - '--accesslog.fields.names.RequestPath=keep'
+  - '--accesslog.fields.names.RequestMethod=keep'
+  - '--accesslog.fields.names.StartUTC=keep'
+  - '--accesslog.fields.headers.names.User-Agent=keep'
+  - '--accesslog.fields.headers.names.Referer=keep'
+  - '--accesslog.fields.headers.names.Authorization=keep'
+  - '--accesslog.fields.headers.names.X-Forwarded-For=keep'
 
 persistence:
   enabled: true
@@ -17,6 +27,20 @@ persistence:
   existingClaim: nfs-certificates-claim
   path: /acme
 ####
+
+#### Comment this sections if you are not using NFS storage for logs
+deployment:
+  additionalVolumes:
+    - name: traefik-logs
+      persistentVolumeClaim:
+        claimName: nfs-log-dir-claim
+
+additionalVolumeMounts:
+  - name: traefik-logs
+    mountPath: /var/log/traefik
+    subPath: ${NFS_LOG_TRAEFIK_SUBPATH}
+####
+
 
 #### Comment this sections if you are not using MetalLB
 service:
@@ -31,4 +55,4 @@ logs:
   access:
     enabled: true
   general:
-    level: INFO
+    level: INFO  

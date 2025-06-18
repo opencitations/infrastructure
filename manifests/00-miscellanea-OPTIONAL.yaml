@@ -1,0 +1,58 @@
+#traefik crontab
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: traefik-logrotate-simple
+  namespace: default
+spec:
+  # Run at 1:00 AM on the first day of every month
+  schedule: "0 1 1 * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: logrotate
+            image: alpine:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              # Simple rotation script
+              cd /var/log/traefik
+              
+              # Get previous month's year and month
+              if [ "$(date +%m)" = "01" ]; then
+                # If we're in January, previous month is December of last year
+                YEAR=$(($(date +%Y) - 1))
+                MONTH="12"
+              else
+                YEAR=$(date +%Y)
+                MONTH=$(printf "%02d" $(($(date +%m) - 1)))
+              fi
+              
+              # If access log exists and is not empty, copy it
+              if [ -f "traefik-access.log" ] && [ -s "traefik-access.log" ]; then
+                cp traefik-access.log "oc-${YEAR}-${MONTH}.log"
+                
+                # Empty the original file instead of removing it
+                # This avoids issues if Traefik has the file open
+                > traefik-access.log
+                
+                echo "Log rotated: oc-${YEAR}-${MONTH}.log"
+              else
+                echo "No logs to rotate"
+              fi
+              
+              # Optional: remove logs older than 5 years (1825 days)
+              find /var/log/traefik -name "oc-*.log" -mtime +1825 -delete
+            volumeMounts:
+            - name: logs
+              mountPath: /var/log/traefik
+              subPath: traefik
+          restartPolicy: OnFailure
+          volumes:
+          - name: logs
+            persistentVolumeClaim:
+              claimName: nfs-log-dir-claim
