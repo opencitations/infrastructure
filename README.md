@@ -40,6 +40,7 @@ Edit the `.env` file with your specific configurations for services, infrastruct
    - `NFS_CERT_PATH`
    - `NFS_DATA_PATH`
    - `NFS_LOG_PATH`
+   - `NFS_LOG_TRAEFIK_SUBPATH`
 
 #### For Alternative Storage:
 1. Modify both `preliminary/00-secrets.yaml` and `preliminary/02-storage.yaml` to match your storage system's requirements

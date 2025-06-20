@@ -24,7 +24,7 @@ spec:
               name: http
               protocol: TCP
           env:
-            - name: SEARCH_BASE_URL
+            - name: BASE_URL
               value: "${SEARCH_BASE_URL}"
             - name: SPARQL_ENDPOINT_INDEX
               value: "${SPARQL_ENDPOINT_INDEX}"

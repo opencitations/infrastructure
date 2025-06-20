@@ -24,7 +24,7 @@ spec:
               name: http
               protocol: TCP
           env:
-            - name: API_BASE_URL
+            - name: BASE_URL
               value: "${API_BASE_URL}"
             - name: REDIS_ENABLED
               value: "${REDIS_ENABLED}"

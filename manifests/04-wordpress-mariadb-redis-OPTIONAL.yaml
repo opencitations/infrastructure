@@ -213,10 +213,8 @@ spec:
                     # Install required packages and Redis extension
                     apt-get update
                     apt-get install -y sendmail
-                    # Install Redis PHP extension using pecl
                     pecl install redis
                     docker-php-ext-enable redis
-                    # Restart Apache to load the extension
                     service apache2 reload
           ports:
             - containerPort: 80
@@ -275,6 +273,30 @@ spec:
     permanent: true
 
 ---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: index-ldd-redirects
+spec:
+  redirectRegex:
+    regex: .*/index/ci/(.*)
+    replacement: https://ldd.opencitations.net/index/ci/${1}
+    permanent: true
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: meta-ldd-redirects
+spec:
+  redirectRegex:
+    regex: .*/meta/(ar|ra|id|br|re)/(.*)
+    replacement: https://ldd.opencitations.net/meta/${1}/${2}
+    permanent: true
+
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -307,6 +329,8 @@ spec:
       middlewares:
         - name: api-redirects
         - name: download-redirect
+        - name: index-ldd-redirects
+        - name: meta-ldd-redirects
       services:
         - name: varnish-service
           port: 80

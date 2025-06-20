@@ -10,14 +10,6 @@ data:
     import vsthrottle;
     import std;
 
-    # Backend definitions
-    #backend oc-old {
-    #    .host = "oc-oldwebsite-service.default.svc.cluster.local";
-    #    .first_byte_timeout = 900s;
-    #    .between_bytes_timeout = 900s;
-    #    .port = "80";
-    #}
-
     backend wordpress {
         .host = "${WORDPRESS_SERVICE_NAME}.default.svc.cluster.local";
         .port = "80";
@@ -46,6 +38,13 @@ data:
 
     backend api {
         .host = "oc-api-service.default.svc.cluster.local";
+        .first_byte_timeout = 900s;
+        .between_bytes_timeout = 900s;
+        .port = "80";
+    }
+
+    backend ldd {
+        .host = "oc-ldd-service.default.svc.cluster.local";
         .first_byte_timeout = 900s;
         .between_bytes_timeout = 900s;
         .port = "80";
@@ -121,13 +120,14 @@ data:
         call rate_limit;
 
         # Route requests to the correct backend
-        #if (req.http.host == "k8s.opencitations.net") {
-        #    set req.backend_hint = oc-old;
         if (req.http.host == "sparql.opencitations.net") {
             set req.backend_hint = sparql;
             return (pass);
         } elsif (req.http.host == "download.opencitations.net") {
             set req.backend_hint = download;
+            return (pass);
+        } elsif (req.http.host == "ldd.opencitations.net") {
+            set req.backend_hint = ldd;
             return (pass);
         } elsif (req.http.host == "search.opencitations.net") {
             set req.backend_hint = search;

@@ -24,7 +24,7 @@ spec:
               name: http
               protocol: TCP
           env:
-            - name: DOWNLOAD_BASE_URL
+            - name: BASE_URL
               value: "${DOWNLOAD_BASE_URL}"
             - name: META_HOST
               value: ${META_SERVICE_NAME}
