@@ -179,6 +179,7 @@ data:
                 req.method == "POST" ||
                 req.url ~ "preview=true" ||
                 req.url ~ "customize.php" ||
+                req.url ~ "/wp-json/" ||
                 req.url ~ "xmlrpc.php" ||
                 req.url ~ "feed/" ||
                 req.url ~ "/wc-api/" ||
