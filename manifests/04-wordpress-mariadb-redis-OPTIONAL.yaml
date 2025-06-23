@@ -209,12 +209,24 @@ spec:
                 command:
                   - /bin/bash
                   - '-c'
-                  - >
-                    # Install required packages and Redis extension
+                  - |
+                    # Wait for container to be ready
+                    sleep 10
+                    
+                    # Update package list
                     apt-get update
-                    apt-get install -y sendmail
+                    
+                    # Install sendmail
+                    DEBIAN_FRONTEND=noninteractive apt-get install -y sendmail
+                    
+                    # Install Redis extension
                     pecl install redis
                     docker-php-ext-enable redis
+                    
+                    # Start sendmail service
+                    service sendmail start
+                    
+                    # Reload Apache
                     service apache2 reload
           ports:
             - containerPort: 80
