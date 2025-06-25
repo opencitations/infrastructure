@@ -71,7 +71,33 @@ spec:
      protocol: TCP
      targetPort: 8080
  type: ClusterIP
+
 ---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: meta-v1-api-redirects
+spec:
+  redirectRegex:
+    regex: .*/meta/v1/(author|editor|metadata)(/)?$
+    replacement: https://api.opencitations.net/meta/v1
+    permanent: true
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: index-v1v2-api-redirects
+spec:
+  redirectRegex:
+    regex: .*/index/(v1|v2)/(citation|citation-count|reference-count|metadata|citations|references|venue-citation-count)(/)?$
+    replacement: https://api.opencitations.net/index/$1
+    permanent: true
+
+---
+
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -85,6 +111,9 @@ spec:
  routes:
    - kind: Rule
      match: Host(`${API_BASE_URL}`)
+     middlewares:
+       - name: meta-v1-api-redirects
+       - name: index-v1v2-api-redirects
      services:
        - name: varnish-service
          port: 80
