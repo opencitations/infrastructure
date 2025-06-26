@@ -31,7 +31,6 @@ persistence:
 
 #### Comment this sections if you are not using NFS storage for logs
 deployment:
-  replicas: 3
   additionalVolumes:
     - name: traefik-logs
       persistentVolumeClaim:
