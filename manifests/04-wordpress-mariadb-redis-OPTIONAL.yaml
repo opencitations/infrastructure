@@ -346,3 +346,5 @@ spec:
       services:
         - name: varnish-service
           port: 80
+  tls:
+   certResolver: myresolver
