@@ -333,7 +333,6 @@ metadata:
     app: ${WORDPRESS_SERVICE_NAME}
 spec:
   entryPoints:
-    - web
     - websecure
   routes:
     - kind: Rule
@@ -348,3 +347,28 @@ spec:
           port: 80
   tls:
    certResolver: myresolver
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: ${WORDPRESS_SERVICE_NAME}-http-only
+  namespace: default
+  labels:
+    app: ${WORDPRESS_SERVICE_NAME}
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`${WORDPRESS_DOMAIN}`)
+      middlewares:
+        - name: redirect-to-https
+        - name: api-redirects
+        - name: download-redirect
+        - name: index-ldd-redirects
+        - name: meta-ldd-redirects
+      services:
+        - name: varnish-service
+          port: 80
