@@ -117,11 +117,11 @@ spec:
               value: "${BACKUP_RETENTION_DAYS}"
             resources:
               requests:
-                memory: "256Mi"
-                cpu: "200m"
+                memory: "4Gi"
+                cpu: "2"
               limits:
-                memory: "1Gi"
-                cpu: "1"
+                memory: "8Gi"
+                cpu: "4"
             volumeMounts:
             - name: backup-script
               mountPath: /scripts

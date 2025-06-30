@@ -51,7 +51,7 @@ spec:
             - $(REDIS_PASSWORD)
           resources:
             limits:
-              memory: 64Gi
+              memory: 18Gi
             requests:
               cpu: 2
               memory: 16Gi
