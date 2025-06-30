@@ -52,6 +52,9 @@ spec:
             requests:
               cpu: ${META_CPU_REQUEST}
               memory: ${META_MEMORY_REQUEST}
+            limits:
+              cpu: 6
+              memory: 128Gi
           lifecycle:
             preStop:
               exec:
@@ -104,10 +107,28 @@ spec:
             - containerPort: 8890
               protocol: TCP
               name: sparql
+          readinessProbe:
+            tcpSocket:
+              port: 1111
+            initialDelaySeconds: 30   
+            periodSeconds: 10          
+            timeoutSeconds: 5          
+            successThreshold: 1        
+            failureThreshold: 5       
+          livenessProbe:
+            tcpSocket:
+              port: 1111
+            initialDelaySeconds: 240 
+            periodSeconds: 60          
+            timeoutSeconds: 15          
+            failureThreshold: 2
           resources:
             requests:
               cpu: ${META_CPU_REQUEST}
               memory: ${META_MEMORY_REQUEST}
+            limits:
+              cpu: 6
+              memory: 128Gi
           lifecycle:
             preStop:
               exec:

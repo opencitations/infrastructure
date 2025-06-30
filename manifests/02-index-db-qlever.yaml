@@ -26,7 +26,7 @@ spec:
           command:
             - bash
             - '-c'
-            - 'ServerMain -i oc_index -j 15 -p 7011 -m 128G -c 48G -e 3G -k 200 -s 320s 2>&1 | tee oc_index.server-log.txt'
+            - 'ServerMain -i oc_index -j 15 -p 7011 -m 120G -c 41G -e 3G -k 200 -s 320s 2>&1 | tee oc_index.server-log.txt'
           ports:
             - containerPort: 7011
               protocol: TCP
@@ -50,6 +50,9 @@ spec:
             requests:
               cpu: ${INDEX_CPU_REQUEST}
               memory: ${INDEX_MEMORY_REQUEST}
+            limits:
+              cpu: 9
+              memory: 128Gi
           lifecycle:
             preStop:
               exec:
@@ -99,7 +102,7 @@ spec:
           command:
             - bash
             - '-c'
-            - 'ServerMain -i oc_index -j 15 -p 7011 -m 128G -c 48G -e 3G -k 200 -s 320s 2>&1 | tee oc_index.server-log.txt'
+            - 'ServerMain -i oc_index -j 15 -p 7011 -m 120G -c 41G -e 3G -k 200 -s 320s 2>&1 | tee oc_index.server-log.txt'
           ports:
             - containerPort: 7011
               protocol: TCP
@@ -123,6 +126,9 @@ spec:
             requests:
               cpu: ${INDEX_CPU_REQUEST}
               memory: ${INDEX_MEMORY_REQUEST}
+            limits:
+              cpu: 9
+              memory: 128Gi
           lifecycle:
             preStop:
               exec:
