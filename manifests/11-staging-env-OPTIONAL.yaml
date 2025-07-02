@@ -1,0 +1,403 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-search-stg
+  namespace: default
+  labels:
+    app: oc-search-stg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oc-search-stg
+  template:
+    metadata:
+      labels:
+        app: oc-search-stg
+    spec:
+      containers:
+        - name: oc-search-stg
+          image: opencitations/oc_search:${SEARCH_WEBSITE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: BASE_URL
+              value: "${SEARCH_BASE_URL_STAGING}"
+            - name: SPARQL_ENDPOINT_INDEX
+              value: "${SPARQL_ENDPOINT_INDEX}"
+            - name: SPARQL_ENDPOINT_META
+              value: "${SPARQL_ENDPOINT_META}"
+            - name: META_HOST
+              value: ${META_SERVICE_NAME}
+            - name: META_PORT
+              value: '1111'
+            - name: META_USER
+              value: ${META_USER}
+            - name: META_PASSWORD
+              value: ${META_DBA_PASSWORD}
+          resources: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: oc-search-service-stg
+ namespace: default
+ labels:
+   app: oc-search-stg
+spec:
+ selector:
+   app: oc-search-stg
+ ports:
+   - name: http
+     port: 80
+     protocol: TCP
+     targetPort: 8080
+ type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-search-stg
+ namespace: default
+ labels:
+   app: oc-search-stg
+spec:
+ entryPoints:
+   - web
+   - websecure
+ routes:
+   - kind: Rule
+     match: Host(`${SEARCH_BASE_URL_STAGING}`)
+     services:
+       - name: oc-search-service-stg
+         port: 80
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-sparql-stg
+  namespace: default
+  labels:
+    app: oc-sparql-stg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oc-sparql-stg
+  template:
+    metadata:
+      labels:
+        app: oc-sparql-stg
+    spec:
+      containers:
+        - name: oc-sparql-stg
+          image: opencitations/oc_sparql:${SPARQL_WEBSITE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: BASE_URL
+              value: "${SPARQL_BASE_URL_STAGING}"
+            - name: SPARQL_ENDPOINT_INDEX
+              value: "${SPARQL_ENDPOINT_INDEX}"
+            - name: SPARQL_ENDPOINT_META
+              value: "${SPARQL_ENDPOINT_META}"
+            - name: META_HOST
+              value: ${META_SERVICE_NAME}
+            - name: META_PORT
+              value: '1111'
+            - name: META_USER
+              value: ${META_USER}
+            - name: META_PASSWORD
+              value: ${META_DBA_PASSWORD}
+          resources: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: oc-sparql-service-stg
+ namespace: default
+ labels:
+   app: oc-sparql-stg
+spec:
+ selector:
+   app: oc-sparql-stg
+ ports:
+   - name: http
+     port: 80
+     protocol: TCP
+     targetPort: 8080
+ type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-sparql-stg
+ namespace: default
+ labels:
+   app: oc-sparql-stg
+spec:
+ entryPoints:
+   - web
+   - websecure
+ routes:
+   - kind: Rule
+     match: Host(`${SPARQL_BASE_URL_STAGING}`)
+     services:
+       - name: oc-sparql-service-stg
+         port: 80
+
+---
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-download-stg
+  namespace: default
+  labels:
+    app: oc-download-stg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oc-download-stg
+  template:
+    metadata:
+      labels:
+        app: oc-download-stg
+    spec:
+      containers:
+        - name: oc-download-stg
+          image: opencitations/oc_download:${DOWNLOAD_WEBSITE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: BASE_URL
+              value: "${DOWNLOAD_BASE_URL_STAGING}"
+            - name: META_HOST
+              value: ${META_SERVICE_NAME}
+            - name: META_PORT
+              value: '1111'
+            - name: META_USER
+              value: ${META_USER}
+            - name: META_PASSWORD
+              value: ${META_DBA_PASSWORD}
+          resources: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: oc-download-service-stg
+ namespace: default
+ labels:
+   app: oc-download-stg
+spec:
+ selector:
+   app: oc-download-stg
+ ports:
+   - name: http
+     port: 80
+     protocol: TCP
+     targetPort: 8080
+ type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-download-stg
+ namespace: default
+ labels:
+   app: oc-download-stg
+spec:
+ entryPoints:
+   - web
+   - websecure
+ routes:
+   - kind: Rule
+     match: Host(`${DOWNLOAD_BASE_URL_STAGING}`)
+     services:
+       - name: oc-download-service-stg
+         port: 80
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-api-stg
+  namespace: default
+  labels:
+    app: oc-api-stg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oc-api-stg
+  template:
+    metadata:
+      labels:
+        app: oc-api-stg
+    spec:
+      containers:
+        - name: oc-api-stg
+          image: opencitations/oc_api:${API_WEBSITE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: BASE_URL
+              value: "${API_BASE_URL_STAGING}"
+            - name: REDIS_ENABLED
+              value: "${REDIS_ENABLED}"
+            - name: REDIS_HOST
+              value: "${REDIS_HOST}"
+            - name: REDIS_PORT
+              value: '6379'
+            - name: REDIS_PASSWORD
+              value: "${REDIS_PWD}"
+            - name: REDIS_DB
+              value: '${REDIS_DB}'
+            - name: META_HOST
+              value: ${META_SERVICE_NAME}
+            - name: META_PORT
+              value: '1111'
+            - name: META_USER
+              value: ${META_USER}
+            - name: META_PASSWORD
+              value: ${META_DBA_PASSWORD}
+          resources: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: oc-api-service-stg
+ namespace: default
+ labels:
+   app: oc-api-stg
+spec:
+ selector:
+   app: oc-api-stg
+ ports:
+   - name: http
+     port: 80
+     protocol: TCP
+     targetPort: 8080
+ type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-api-stg
+ namespace: default
+ labels:
+   app: oc-api-stg
+spec:
+ entryPoints:
+   - web
+   - websecure
+ routes:
+   - kind: Rule
+     match: Host(`${API_BASE_URL_STAGING}`)
+     services:
+       - name: oc-api-service-stg
+         port: 80
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-ldd-stg
+  namespace: default
+  labels:
+    app: oc-ldd-stg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oc-ldd-stg
+  template:
+    metadata:
+      labels:
+        app: oc-ldd-stg
+    spec:
+      containers:
+        - name: oc-ldd-stg
+          image: opencitations/oc_ldd:${LDD_WEBSITE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: BASE_URL
+              value: "${LDD_BASE_URL_STAGING}"
+            - name: META_HOST
+              value: ${META_SERVICE_NAME}
+            - name: META_PORT
+              value: '1111'
+            - name: META_USER
+              value: ${META_USER}
+            - name: META_PASSWORD
+              value: ${META_DBA_PASSWORD}
+            - name: INDEX_BASE_URL
+              value: "${LDD_REDIRECT_BASE_URL}"
+          resources: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: oc-ldd-service-stg
+ namespace: default
+ labels:
+   app: oc-ldd-stg
+spec:
+ selector:
+   app: oc-ldd-stg
+ ports:
+   - name: http
+     port: 80
+     protocol: TCP
+     targetPort: 8080
+ type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-ldd-stg
+ namespace: default
+ labels:
+   app: oc-ldd-stg
+spec:
+ entryPoints:
+   - web
+   - websecure
+ routes:
+   - kind: Rule
+     match: Host(`${LDD_BASE_URL_STAGING}`)
+     services:
+       - name: oc-ldd-service-stg
+         port: 80
