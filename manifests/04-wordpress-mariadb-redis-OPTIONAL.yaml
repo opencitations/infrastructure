@@ -277,6 +277,18 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
+  name: api-redirects-new
+spec:
+  redirectRegex:
+    regex: .*/api/v1(.*)
+    replacement: https://api.opencitations.net/index/v1${1}
+    permanent: true
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
   name: download-redirect
 spec:
   redirectRegex:
@@ -339,6 +351,7 @@ spec:
       match: Host(`${WORDPRESS_DOMAIN}`)
       middlewares:
         - name: api-redirects
+        - name: api-redirects-new
         - name: download-redirect
         - name: index-ldd-redirects
         - name: meta-ldd-redirects
@@ -366,6 +379,7 @@ spec:
       middlewares:
         - name: redirect-to-https
         - name: api-redirects
+        - name: api-redirects-new
         - name: download-redirect
         - name: index-ldd-redirects
         - name: meta-ldd-redirects
