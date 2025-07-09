@@ -61,7 +61,7 @@ data:
                 }
                 # Apply rate limit using real IP
                 if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-                    if (vsthrottle.is_denied(req.http.X-Real-IP, 280, 60s)) {
+                    if (vsthrottle.is_denied(req.http.X-Real-IP, 350, 60s)) {
                         # Add informative headers before blocking
                         set req.http.X-Rate-Limit-Exceeded = "true";
                         set req.http.X-Rate-Limit = "100";
@@ -77,7 +77,7 @@ data:
                 }
                 # Apply global rate limit per IP
                 if (req.http.User-Agent !~ " StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-                    if (vsthrottle.is_denied(client.ip, 280, 60s)) {
+                    if (vsthrottle.is_denied(client.ip, 350, 60s)) {
                         # Add informative headers before blocking
                         set req.http.X-Rate-Limit-Exceeded = "true";
                         set req.http.X-Rate-Limit = "100";
@@ -234,8 +234,8 @@ data:
 
         # Specific handling for WordPress
         if (bereq.url ~ "^/wp-" && bereq.url !~ "\.(css|js|png|gif|jp(e)?g)") {
-            set beresp.ttl = 1h;
-            set beresp.grace = 2h;
+            set beresp.ttl = 6h;
+            set beresp.grace = 48h;
         }
 
         # Don't cache WordPress admin pages or search results
@@ -252,7 +252,8 @@ data:
         } elseif (bereq.url ~ "/meta/v1/" || bereq.url ~ "/index/v1/" || bereq.url ~ "/index/v2/") {
             set beresp.ttl = 60d;  # API for 60 days
         } else {
-            set beresp.ttl = 1h;   # Dynamic content for 1 hour
+            set beresp.ttl = 3h;     # Dynamic content for 3 hour
+            set beresp.grace = 96h;
         }
 
         # Remove Set-Cookie for static resources

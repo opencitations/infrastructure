@@ -202,32 +202,7 @@ spec:
     spec:
       containers:
         - name: wordpress
-          image: wordpress:latest
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - /bin/bash
-                  - '-c'
-                  - |
-                    # Wait for container to be ready
-                    sleep 10
-                    
-                    # Update package list
-                    apt-get update
-                    
-                    # Install sendmail
-                    DEBIAN_FRONTEND=noninteractive apt-get install -y sendmail
-                    
-                    # Install Redis extension
-                    pecl install redis
-                    docker-php-ext-enable redis
-                    
-                    # Start sendmail service
-                    service sendmail start
-                    
-                    # Reload Apache
-                    service apache2 reload
+          image: opencitations/oc_ldd:wp-custom02
           ports:
             - containerPort: 80
               name: wordpress
@@ -249,8 +224,11 @@ spec:
                 define('WP_SITEURL', '${DOMAIN_WITH_HTTPS}');
           resources:
             requests:
-              cpu: 300m
-              memory: 4Gi
+              cpu: 2300m
+              memory: 16Gi
+            limits:
+              cpu: 3000m
+              memory: 32Gi
           volumeMounts:
             - name: wordpress-data
               mountPath: /var/www/html
@@ -318,6 +296,18 @@ spec:
   redirectRegex:
     regex: .*/meta/(ar|ra|id|br|re)/(.*)
     replacement: https://ldd.opencitations.net/meta/${1}/${2}
+    permanent: true
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oci-redirects
+spec:
+  redirectRegex:
+    regex: .*/oci/(.*)
+    replacement: https://ldd.opencitations.net/index/ci/${1}
     permanent: true
 
 ---
