@@ -247,13 +247,16 @@ data:
         # Set TTL for different content types
         if (bereq.url ~ "\.(css|js|png|gif|jp(e)?g|swf|ico)$") {
             set beresp.ttl = 30d;  # Static resources for 30 days
+            set beresp.grace = 7d; 
         } elseif (bereq.url ~ "\.(html|woff|woff2|ttf|eot|json)$") {
             set beresp.ttl = 10d;  # Other static files for 10 days
+            set beresp.grace = 7d; 
         } elseif (bereq.url ~ "/meta/v1/" || bereq.url ~ "/index/v1/" || bereq.url ~ "/index/v2/") {
             set beresp.ttl = 60d;  # API for 60 days
+            set beresp.grace = 7d;
         } else {
             set beresp.ttl = 3h;     # Dynamic content for 3 hour
-            set beresp.grace = 96h;
+            set beresp.grace = 7d;
         }
 
         # Remove Set-Cookie for static resources
