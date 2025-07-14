@@ -108,7 +108,7 @@ Example: `457ce675-afbd-47c5-9218-192bbc9d024f-1748350084`
  * Plugin Name: OpenCitations Token Request
  * Plugin URI: https://opencitations.net
  * Description: Module for requesting OpenCitations tokens with hCaptcha verification and Redis storage
- * Version: 2.0.1
+ * Version: 2.0.2
  * License: CC0
  */
 
@@ -131,6 +131,7 @@ class OpenCitationsTokenRequest {
     private $smtp_user;
     private $smtp_password;
     private $smtp_secure;
+    private $backup_emails; // NEW: backup email addresses
 
     public function __construct() {
         add_action('init', array($this, 'init'));
@@ -140,12 +141,19 @@ class OpenCitationsTokenRequest {
         add_shortcode('opencitations_token_form', array($this, 'display_form'));
         add_action('admin_menu', array($this, 'add_admin_menu'));
 
+        // NEW: Add cron hooks for monthly backup
+        add_action('opencitations_monthly_backup', array($this, 'send_monthly_backup'));
+
         // Load configuration
         $this->load_config();
     }
 
     public function init() {
         // Plugin initialization
+        // NEW: Schedule monthly backup if not already scheduled
+        if (!wp_next_scheduled('opencitations_monthly_backup')) {
+            wp_schedule_event(strtotime('first day of next month 00:00:00'), 'monthly', 'opencitations_monthly_backup');
+        }
     }
 
     private function load_config() {
@@ -161,6 +169,7 @@ class OpenCitationsTokenRequest {
         $this->smtp_user = get_option('oct_smtp_user', '');
         $this->smtp_password = get_option('oct_smtp_password', '');
         $this->smtp_secure = get_option('oct_smtp_secure', 'tls');
+        $this->backup_emails = get_option('oct_backup_emails', ''); // NEW
     }
 
     public function enqueue_scripts() {
@@ -720,6 +729,251 @@ class OpenCitationsTokenRequest {
         $phpmailer->FromName = $this->from_name;
     }
 
+    // NEW: Function to collect all tokens from Redis
+    private function collect_all_tokens() {
+        if (!extension_loaded('redis')) {
+            return array('success' => false, 'message' => 'Redis extension not available');
+        }
+
+        try {
+            $redis = new Redis();
+            $connected = $redis->connect($this->redis_host, $this->redis_port, 10);
+
+            if (!$connected) {
+                return array('success' => false, 'message' => 'Redis connection failed');
+            }
+
+            // Authenticate if password is set
+            if (!empty($this->redis_password)) {
+                $auth = $redis->auth($this->redis_password);
+                if (!$auth) {
+                    $redis->close();
+                    return array('success' => false, 'message' => 'Redis authentication failed');
+                }
+            }
+
+            // Get all keys
+            $all_keys = $redis->keys('*');
+            $token_keys = array();
+
+            // Filter keys that match token patterns (exclude email cooldown keys)
+            foreach ($all_keys as $key) {
+                // Skip email cooldown keys
+                if (strpos($key, 'opencitations:email:') !== false) {
+                    continue;
+                }
+                
+                $hyphen_count = substr_count($key, '-');
+                
+                // Old tokens: exactly 4 hyphens (UUID format)
+                // New tokens: exactly 5 hyphens (UUID-EPOCH format)
+                if ($hyphen_count == 4 || $hyphen_count == 5) {
+                    // Additional check: should be UUID-like (no spaces, reasonable length)
+                    if (strlen($key) >= 36 && strlen($key) <= 60 && !preg_match('/\s/', $key)) {
+                        $token_keys[] = $key;
+                    }
+                }
+            }
+
+            $redis->close();
+
+            // Sort tokens by creation date (newer first)
+            usort($token_keys, function($a, $b) {
+                // Extract creation time from new format tokens
+                $time_a = $this->extract_token_time($a);
+                $time_b = $this->extract_token_time($b);
+                
+                // If both have times, sort by time (newer first)
+                if ($time_a && $time_b) {
+                    return $time_b - $time_a;
+                }
+                
+                // Put tokens with times before those without
+                if ($time_a && !$time_b) return -1;
+                if (!$time_a && $time_b) return 1;
+                
+                // For tokens without times, sort alphabetically
+                return strcmp($a, $b);
+            });
+
+            return array('success' => true, 'tokens' => $token_keys);
+
+        } catch (Exception $e) {
+            error_log('OpenCitations Token: Error collecting tokens: ' . $e->getMessage());
+            return array('success' => false, 'message' => 'Error collecting tokens: ' . $e->getMessage());
+        }
+    }
+
+    // NEW: Helper function to extract creation time from token
+    private function extract_token_time($token) {
+        $hyphen_count = substr_count($token, '-');
+        
+        // Only new format tokens (5 hyphens) have timestamps
+        if ($hyphen_count == 5) {
+            $parts = explode('-', $token);
+            $epoch_time = end($parts);
+            if (is_numeric($epoch_time) && $epoch_time > 1000000000) {
+                return (int)$epoch_time;
+            }
+        }
+        
+        return null;
+    }
+
+    // NEW: Function to create backup file content
+    private function create_backup_content($tokens) {
+        $content = "OpenCitations Token Backup\n";
+        $content .= "Generated on: " . date('Y-m-d H:i:s') . " UTC\n";
+        $content .= "Total tokens: " . count($tokens) . "\n";
+        $content .= str_repeat("=", 50) . "\n\n";
+
+        $old_tokens = 0;
+        $new_tokens = 0;
+
+        foreach ($tokens as $token) {
+            $creation_time = $this->extract_token_time($token);
+            
+            if ($creation_time) {
+                $content .= $token . " (Created: " . date('Y-m-d H:i:s', $creation_time) . ")\n";
+                $new_tokens++;
+            } else {
+                $content .= $token . " (Legacy token)\n";
+                $old_tokens++;
+            }
+        }
+
+        $content .= "\n" . str_repeat("=", 50) . "\n";
+        $content .= "Summary:\n";
+        $content .= "Legacy tokens (UUID only): " . $old_tokens . "\n";
+        $content .= "New tokens (UUID-EPOCH): " . $new_tokens . "\n";
+        $content .= "Total: " . count($tokens) . "\n";
+
+        return $content;
+    }
+
+    // NEW: Function to send backup email with attachment
+    private function send_backup_email($backup_emails, $tokens) {
+        if (empty($backup_emails) || empty($tokens)) {
+            return false;
+        }
+
+        // Parse email addresses
+        $email_list = array_map('trim', explode(',', $backup_emails));
+        $email_list = array_filter($email_list, 'is_email');
+
+        if (empty($email_list)) {
+            error_log('OpenCitations Token: No valid backup email addresses found');
+            return false;
+        }
+
+        // Configure SMTP if settings are provided
+        if (!empty($this->smtp_host) && !empty($this->smtp_user)) {
+            add_action('phpmailer_init', array($this, 'configure_smtp'));
+        }
+
+        $filename = 'opencitations_tokens_backup_' . date('Y-m-d_H-i-s') . '.txt';
+        $backup_content = $this->create_backup_content($tokens);
+
+        // Create temporary file
+        $temp_file = wp_upload_dir()['basedir'] . '/' . $filename;
+        file_put_contents($temp_file, $backup_content);
+
+        $subject = 'OpenCitations Token Backup - ' . date('Y-m-d');
+        
+        $html_content = '
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #aa5bf9, #3e48e1); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #ffffff; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #ddd; }
+        .stats { background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0; }
+        .footer { text-align: center; margin-top: 30px; padding: 15px; color: #666; font-size: 14px; border-top: 1px solid #eee; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>OpenCitations Token Backup</h1>
+    </div>
+
+    <div class="content">
+        <p>Hello,</p>
+
+        <p>This is your scheduled backup of all OpenCitations tokens.</p>
+
+        <div class="stats">
+            <strong>Backup Statistics:</strong><br>
+            <ul>
+                <li>Backup Date: ' . date('Y-m-d H:i:s') . ' UTC</li>
+                <li>Total Tokens: ' . count($tokens) . '</li>
+                <li>File: ' . $filename . '</li>
+            </ul>
+        </div>
+
+        <p>The complete list of tokens is attached to this email as a text file.</p>
+
+        <div class="footer">
+            <p>Best regards,<br>OpenCitations Token Management System</p>
+        </div>
+    </div>
+</body>
+</html>';
+
+        $headers = array(
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . $this->from_name . ' <' . $this->from_email . '>'
+        );
+
+        $sent = false;
+        foreach ($email_list as $email) {
+            $individual_sent = wp_mail($email, $subject, $html_content, $headers, array($temp_file));
+            if ($individual_sent) {
+                $sent = true;
+                error_log('OpenCitations Token: Backup email sent successfully to: ' . $email);
+            } else {
+                error_log('OpenCitations Token: Failed to send backup email to: ' . $email);
+            }
+        }
+
+        // Clean up temporary file
+        if (file_exists($temp_file)) {
+            unlink($temp_file);
+        }
+
+        // Remove SMTP configuration after sending
+        if (!empty($this->smtp_host) && !empty($this->smtp_user)) {
+            remove_action('phpmailer_init', array($this, 'configure_smtp'));
+        }
+
+        return $sent;
+    }
+
+    // NEW: Monthly backup function (called by cron)
+    public function send_monthly_backup() {
+        error_log('OpenCitations Token: Starting monthly backup');
+
+        $backup_emails = get_option('oct_backup_emails', '');
+        if (empty($backup_emails)) {
+            error_log('OpenCitations Token: No backup emails configured, skipping monthly backup');
+            return;
+        }
+
+        $result = $this->collect_all_tokens();
+        if (!$result['success']) {
+            error_log('OpenCitations Token: Failed to collect tokens for monthly backup: ' . $result['message']);
+            return;
+        }
+
+        $backup_sent = $this->send_backup_email($backup_emails, $result['tokens']);
+        if ($backup_sent) {
+            error_log('OpenCitations Token: Monthly backup sent successfully');
+        } else {
+            error_log('OpenCitations Token: Failed to send monthly backup');
+        }
+    }
+
     // Admin page
     public function add_admin_menu() {
         add_options_page(
@@ -745,11 +999,31 @@ class OpenCitationsTokenRequest {
             update_option('oct_smtp_user', sanitize_text_field($_POST['smtp_user']));
             update_option('oct_smtp_password', sanitize_text_field($_POST['smtp_password']));
             update_option('oct_smtp_secure', sanitize_text_field($_POST['smtp_secure']));
+            update_option('oct_backup_emails', sanitize_textarea_field($_POST['backup_emails'])); // NEW
 
             echo '<div class="notice notice-success"><p>Settings saved!</p></div>';
 
             // Reload configuration
             $this->load_config();
+        }
+
+        // NEW: Handle manual backup send
+        if (isset($_POST['send_backup_now'])) {
+            if (empty($this->backup_emails)) {
+                echo '<div class="notice notice-error"><p>Please configure backup email addresses first.</p></div>';
+            } else {
+                $result = $this->collect_all_tokens();
+                if ($result['success']) {
+                    $backup_sent = $this->send_backup_email($this->backup_emails, $result['tokens']);
+                    if ($backup_sent) {
+                        echo '<div class="notice notice-success"><p>Backup sent successfully to configured email addresses!</p></div>';
+                    } else {
+                        echo '<div class="notice notice-error"><p>Failed to send backup. Please check your email configuration.</p></div>';
+                    }
+                } else {
+                    echo '<div class="notice notice-error"><p>Failed to collect tokens: ' . esc_html($result['message']) . '</p></div>';
+                }
+            }
         }
         ?>
         <div class="wrap">
@@ -812,6 +1086,18 @@ class OpenCitationsTokenRequest {
                     </tr>
                 </table>
 
+                <!-- NEW: Backup Email Configuration -->
+                <h2>Backup Configuration</h2>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Backup Email Addresses</th>
+                        <td>
+                            <textarea name="backup_emails" rows="4" class="large-text" placeholder="admin@example.com, backup@example.com"><?php echo esc_textarea($this->backup_emails); ?></textarea>
+                            <p class="description">Comma-separated list of email addresses to receive monthly token backups. These emails will receive a text file with all active tokens.</p>
+                        </td>
+                    </tr>
+                </table>
+
                 <h2>SMTP Configuration</h2>
                 <p>Configure SMTP settings for reliable email delivery. Leave empty to use default WordPress mail.</p>
                 <table class="form-table">
@@ -859,6 +1145,28 @@ class OpenCitationsTokenRequest {
                 <?php submit_button(); ?>
             </form>
 
+            <!-- NEW: Manual backup section -->
+            <h2>Token Backup Management</h2>
+            <p>Backups are automatically sent on the first day of each month. You can also send a backup immediately using the button below.</p>
+            
+            <form method="post" style="margin-bottom: 20px;">
+                <input type="hidden" name="send_backup_now" value="1">
+                <button type="submit" class="button button-primary" style="background: #28a745; border-color: #28a745;">
+                    📤 Send Backup Now
+                </button>
+                <p class="description">This will immediately send a backup file with all current tokens to the configured backup email addresses.</p>
+            </form>
+
+            <?php
+            // Show next scheduled backup
+            $next_backup = wp_next_scheduled('opencitations_monthly_backup');
+            if ($next_backup) {
+                echo '<p><strong>Next scheduled backup:</strong> ' . date('Y-m-d H:i:s', $next_backup) . ' UTC</p>';
+            } else {
+                echo '<p><strong>Monthly backup:</strong> Not scheduled (will be scheduled on plugin activation)</p>';
+            }
+            ?>
+
             <h2>Usage</h2>
             <p>Use the shortcode <code>[opencitations_token_form]</code> to display the form on any page or post.</p>
 
@@ -887,6 +1195,16 @@ class OpenCitationsTokenRequest {
                 <li><strong>Only token as key and value</strong> for creation date analytics</li>
                 <li><strong>Anonymous identification</strong> for API usage patterns</li>
                 <li><strong>Email hashes</strong> used only for rate limiting (temporary)</li>
+            </ul>
+
+            <!-- NEW: Backup Information -->
+            <h3>Backup System</h3>
+            <p>Automated backup features:</p>
+            <ul>
+                <li><strong>Monthly Schedule:</strong> Backups are sent automatically on the first day of each month</li>
+                <li><strong>File Format:</strong> Plain text file with tokens and creation dates</li>
+                <li><strong>Security:</strong> Backup emails should be sent to secure, monitored addresses</li>
+                <li><strong>Manual Backup:</strong> Use "Send Backup Now" button for immediate backup</li>
             </ul>
 
             <h3>Test Redis Connection</h3>
@@ -1123,11 +1441,18 @@ register_activation_hook(__FILE__, function() {
     add_option('oct_from_name', get_bloginfo('name'));
     add_option('oct_smtp_port', '587');
     add_option('oct_smtp_secure', 'tls');
+    add_option('oct_backup_emails', ''); // NEW
+    
+    // Schedule monthly backup
+    if (!wp_next_scheduled('opencitations_monthly_backup')) {
+        wp_schedule_event(strtotime('first day of next month 00:00:00'), 'monthly', 'opencitations_monthly_backup');
+    }
 });
 
 // Deactivation hook
 register_deactivation_hook(__FILE__, function() {
-    // Clean up if needed
+    // Clean up scheduled events
+    wp_clear_scheduled_hook('opencitations_monthly_backup');
 });
 ?>
 ```
