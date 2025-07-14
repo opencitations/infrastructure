@@ -36,7 +36,13 @@ spec:
               value: ${META_DBA_PASSWORD}
             - name: INDEX_BASE_URL
               value: "${LDD_REDIRECT_BASE_URL}"
-          resources: {}
+          resources:
+            limits:
+              cpu: "1"
+              memory: "4Gi"
+            requests:
+              memory: 1Gi
+              cpu: 300m
           volumeMounts:
             - name: log-storage
               mountPath: /mnt/log_dir

@@ -52,9 +52,10 @@ spec:
           resources:
             limits:
               memory: 32Gi
+              cpu: 2
             requests:
               cpu: 1
-              memory: 16Gi
+              memory: 8Gi
           volumeMounts:
             - name: redis-data
               mountPath: /data
@@ -223,7 +224,8 @@ spec:
                 define('WP_SITEURL', '${DOMAIN_WITH_HTTPS}');
           resources:
             requests:
-              memory: 16Gi
+              memory: 8Gi
+              cpu: 500m
             limits:
               cpu: 4000m
               memory: 32Gi

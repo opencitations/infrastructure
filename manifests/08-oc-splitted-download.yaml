@@ -6,7 +6,7 @@ metadata:
   labels:
     app: oc-download
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: oc-download
@@ -34,7 +34,13 @@ spec:
               value: ${META_USER}
             - name: META_PASSWORD
               value: ${META_DBA_PASSWORD}
-          resources: {}
+          resources:
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+            requests:
+              memory: 1Gi
+              cpu: 200m
           volumeMounts:
             - name: log-storage
               mountPath: /mnt/log_dir

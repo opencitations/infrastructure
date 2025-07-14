@@ -44,7 +44,13 @@ spec:
               value: ${META_USER}
             - name: META_PASSWORD
               value: ${META_DBA_PASSWORD}
-          resources: {}
+          resources:
+            limits:
+              cpu: "2"
+              memory: "8Gi"
+            requests:
+              memory: 4Gi
+              cpu: 500m
           volumeMounts:
             - name: log-storage
               mountPath: /mnt/log_dir

@@ -38,7 +38,13 @@ spec:
               value: ${META_USER}
             - name: META_PASSWORD
               value: ${META_DBA_PASSWORD}
-          resources: {}
+          resources:
+            limits:
+              cpu: 500m
+              memory: "1Gi"
+            requests:
+              memory: 500Mi
+              cpu: 200m
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---
@@ -119,7 +125,13 @@ spec:
               value: ${META_USER}
             - name: META_PASSWORD
               value: ${META_DBA_PASSWORD}
-          resources: {}
+          resources:
+            limits:
+              cpu: 500m
+              memory: "1Gi"
+            requests:
+              memory: 500Mi
+              cpu: 200m
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---
@@ -197,7 +209,13 @@ spec:
               value: ${META_USER}
             - name: META_PASSWORD
               value: ${META_DBA_PASSWORD}
-          resources: {}
+          resources:
+            limits:
+              cpu: 500m
+              memory: "1Gi"
+            requests:
+              memory: 500Mi
+              cpu: 200m
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---
@@ -284,7 +302,13 @@ spec:
               value: ${META_USER}
             - name: META_PASSWORD
               value: ${META_DBA_PASSWORD}
-          resources: {}
+          resources:
+            limits:
+              cpu: 500m
+              memory: "1Gi"
+            requests:
+              memory: 500Mi
+              cpu: 200m
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---
@@ -363,7 +387,13 @@ spec:
               value: ${META_DBA_PASSWORD}
             - name: INDEX_BASE_URL
               value: "${LDD_REDIRECT_BASE_URL}"
-          resources: {}
+          resources:
+            limits:
+              cpu: 500m
+              memory: "1Gi"
+            requests:
+              memory: 500Mi
+              cpu: 200m
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---

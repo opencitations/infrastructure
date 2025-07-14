@@ -462,8 +462,10 @@ spec:
          resources:
            limits:
              memory: 12Gi
+             cpu: 2
            requests:
              memory: 10Gi
+             cpu: 1
          volumeMounts:
            - name: varnish-config
              mountPath: /etc/varnish
