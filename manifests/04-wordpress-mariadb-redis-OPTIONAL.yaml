@@ -311,6 +311,18 @@ spec:
     permanent: true
 
 ---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: sparql-redirects
+spec:
+  redirectRegex:
+    regex: .*/(index|meta)/sparql(.*)?
+    replacement: https://sparql.opencitations.net/${1}${2}
+    permanent: true
+
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -341,6 +353,7 @@ spec:
       match: Host(`${WORDPRESS_DOMAIN}`)
       middlewares:
         - name: api-redirects
+        - name: sparql-redirects
         - name: oci-redirects
         - name: api-redirects-new
         - name: download-redirect
@@ -369,6 +382,7 @@ spec:
       match: Host(`${WORDPRESS_DOMAIN}`)
       middlewares:
         - name: redirect-to-https
+        - name: sparql-redirects
         - name: oci-redirects
         - name: api-redirects
         - name: api-redirects-new

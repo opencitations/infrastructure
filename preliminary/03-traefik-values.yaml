@@ -29,7 +29,7 @@ resources:
     memory: 32Gi
   requests:
     cpu: 2000m
-    memory: 2048Mi
+    memory: 4Gi
 
 persistence:
   enabled: true
