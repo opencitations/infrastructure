@@ -202,7 +202,7 @@ spec:
     spec:
       containers:
         - name: wordpress
-          image: opencitations/oc_ldd:wp-custom02
+          image: opencitations/oc_wordpress:wp-custom06
           ports:
             - containerPort: 80
               name: wordpress

@@ -44,28 +44,6 @@ deployment:
     - name: traefik-logs
       persistentVolumeClaim:
         claimName: nfs-log-dir-claim
-      
-  # Health checks / Probes
-  readinessProbe:
-    httpGet:
-      path: /ping
-      port: 8080
-      scheme: HTTP
-    initialDelaySeconds: 10
-    periodSeconds: 10
-    timeoutSeconds: 3
-    successThreshold: 1
-    failureThreshold: 3
-  livenessProbe:
-    httpGet:
-      path: /ping
-      port: 8080
-      scheme: HTTP
-    initialDelaySeconds: 10
-    periodSeconds: 10
-    timeoutSeconds: 3
-    successThreshold: 1
-    failureThreshold: 3
 
 additionalVolumeMounts:
   - name: traefik-logs
