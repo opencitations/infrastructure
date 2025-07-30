@@ -295,16 +295,18 @@ data:
     # Deliver responses to client
     sub vcl_deliver {
         # Add CORS headers for API and SPARQL requests
-        if (req.http.host == "api.opencitations.net" || req.http.host == "sparql.opencitations.net") {
+        if (req.http.host == "api.opencitations.net" || req.http.host == "sparql.opencitations.net" || req.http.host == "opencitations.net" || req.http.host == "ldd.opencitations.net") {
             # Allow specific origins or all origins
             if (req.http.Origin) {
                 set resp.http.Access-Control-Allow-Origin = req.http.Origin;
+                set resp.http.Access-Control-Allow-Credentials = "true";
             } else {
                 set resp.http.Access-Control-Allow-Origin = "*";
             }
-            set resp.http.Access-Control-Allow-Methods = "GET, POST, OPTIONS";
-            set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept";
-            set resp.http.Access-Control-Max-Age = "3600";
+            set resp.http.Access-Control-Allow-Methods = "GET, POST, OPTIONS, HEAD";
+            set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin, DNT, User-Agent";
+            set resp.http.Access-Control-Expose-Headers = "Content-Length, Content-Range, X-Total-Count";
+            set resp.http.Access-Control-Max-Age = "86400";
         }
 
         # Set X-Cache header based on response type
@@ -338,10 +340,15 @@ data:
         # Handle CORS preflight responses
         if (req.http.X-CORS-Preflight == "true") {
             set resp.http.Content-Type = "text/plain";
-            set resp.http.Access-Control-Allow-Origin = "*";
-            set resp.http.Access-Control-Allow-Methods = "GET, POST, OPTIONS";
-            set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept";
-            set resp.http.Access-Control-Max-Age = "3600";
+            if (req.http.Origin) {
+                set resp.http.Access-Control-Allow-Origin = req.http.Origin;
+                set resp.http.Access-Control-Allow-Credentials = "true";
+            } else {
+                set resp.http.Access-Control-Allow-Origin = "*";
+            }
+            set resp.http.Access-Control-Allow-Methods = "GET, POST, OPTIONS, HEAD";
+            set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin, DNT, User-Agent";
+            set resp.http.Access-Control-Max-Age = "86400";
             set resp.body = "";
             return (deliver);
         }
@@ -505,3 +512,15 @@ spec:
     scheme: https
     permanent: true
     port: "443"
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: url-decode-forwardslash
+  namespace: default
+spec:
+  replacePathRegex:
+    regex: '%2[Ff]'
+    replacement: '/'

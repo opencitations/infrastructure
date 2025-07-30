@@ -120,6 +120,7 @@ spec:
      middlewares:
        - name: meta-v1-api-redirects
        - name: index-v1v2-api-redirects
+       - name: url-decode-forwardslash
      services:
        - name: varnish-service
          port: 80

@@ -322,6 +322,112 @@ spec:
     replacement: https://sparql.opencitations.net/${1}${2}
     permanent: true
 
+
+---
+#Inizio sezione per i redirect CORS
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-headers
+  namespace: default
+spec:
+  headers:
+    customResponseHeaders:
+      Access-Control-Allow-Origin: "*"
+      Access-Control-Allow-Methods: "GET, POST, HEAD, OPTIONS"
+      Access-Control-Allow-Headers: "Accept, Authorization, Content-Type, Origin, X-Requested-With"
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: api-redirects-cors
+  namespace: default
+spec:
+  chain:
+    middlewares:
+      - name: cors-headers
+      - name: api-redirects
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: api-redirects-new-cors
+  namespace: default
+spec:
+  chain:
+    middlewares:
+      - name: cors-headers
+      - name: api-redirects-new
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: download-redirect-cors
+  namespace: default
+spec:
+  chain:
+    middlewares:
+      - name: cors-headers
+      - name: download-redirect
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: index-ldd-redirects-cors
+  namespace: default
+spec:
+  chain:
+    middlewares:
+      - name: cors-headers
+      - name: index-ldd-redirects
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: meta-ldd-redirects-cors
+  namespace: default
+spec:
+  chain:
+    middlewares:
+      - name: cors-headers
+      - name: meta-ldd-redirects
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: oci-redirects-cors
+  namespace: default
+spec:
+  chain:
+    middlewares:
+      - name: cors-headers
+      - name: oci-redirects
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: sparql-redirects-cors
+  namespace: default
+spec:
+  chain:
+    middlewares:
+      - name: cors-headers
+      - name: sparql-redirects
+
 ---
 apiVersion: v1
 kind: Service
@@ -352,13 +458,13 @@ spec:
     - kind: Rule
       match: Host(`${WORDPRESS_DOMAIN}`)
       middlewares:
-        - name: api-redirects
-        - name: sparql-redirects
-        - name: oci-redirects
-        - name: api-redirects-new
-        - name: download-redirect
-        - name: index-ldd-redirects
-        - name: meta-ldd-redirects
+        - name: api-redirects-cors
+        - name: sparql-redirects-cors
+        - name: oci-redirects-cors
+        - name: api-redirects-new-cors
+        - name: download-redirect-cors
+        - name: index-ldd-redirects-cors
+        - name: meta-ldd-redirects-cors
       services:
         - name: varnish-service
           port: 80
@@ -382,13 +488,13 @@ spec:
       match: Host(`${WORDPRESS_DOMAIN}`)
       middlewares:
         - name: redirect-to-https
-        - name: sparql-redirects
-        - name: oci-redirects
-        - name: api-redirects
-        - name: api-redirects-new
-        - name: download-redirect
-        - name: index-ldd-redirects
-        - name: meta-ldd-redirects
+        - name: api-redirects-cors
+        - name: sparql-redirects-cors
+        - name: oci-redirects-cors
+        - name: api-redirects-new-cors
+        - name: download-redirect-cors
+        - name: index-ldd-redirects-cors
+        - name: meta-ldd-redirects-cors
       services:
         - name: varnish-service
           port: 80
