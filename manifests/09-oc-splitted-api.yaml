@@ -86,9 +86,49 @@ metadata:
   name: meta-v1-api-redirects
 spec:
   redirectRegex:
-    regex: .*/meta/v1/(author|editor|metadata)(/)?$
+    regex: .*/meta/v1/(author|editor)(/)?$
     replacement: https://api.opencitations.net/meta/v1
     permanent: true
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: metadata-index-v1-stop
+spec:
+  redirectRegex:
+    regex: .*/index/v1/metadata(.*)
+    replacement: https://api.opencitations.net/
+    permanent: true
+
+---
+
+#Inizio sezione per i redirect CORS
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-headers
+  namespace: default
+spec:
+  headers:
+    customResponseHeaders:
+      Access-Control-Allow-Origin: "*"
+      Access-Control-Allow-Methods: "GET, POST, HEAD, OPTIONS"
+      Access-Control-Allow-Headers: "Accept, Authorization, Content-Type, Origin, X-Requested-With"
+
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: metadata-index-v1-stop-cors
+  namespace: default
+spec:
+  chain:
+    middlewares:
+      - name: cors-headers
+      - name: metadata-index-v1-stop
 
 ---
 
@@ -121,6 +161,7 @@ spec:
        - name: meta-v1-api-redirects
        - name: index-v1v2-api-redirects
        - name: url-decode-forwardslash
+       - name: metadata-index-v1-stop-cors
      services:
        - name: varnish-service
          port: 80
