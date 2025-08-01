@@ -19,33 +19,22 @@ spec:
             - /bin/sh
             - -c
             - |
-              # Simple rotation script
+              # Change to log directory
               cd /var/log/traefik
               
-              # Get previous month's year and month
-              if [ "$(date +%m)" = "01" ]; then
-                # If we're in January, previous month is December of last year
-                YEAR=$(($(date +%Y) - 1))
-                MONTH="12"
-              else
-                YEAR=$(date +%Y)
-                MONTH=$(printf "%02d" $(($(date +%m) - 1)))
-              fi
+              # Get previous month
+              YEAR=$(date -d "last month" +%Y)
+              MONTH=$(date -d "last month" +%m)
               
-              # If access log exists and is not empty, copy it
+              # Check if log exists and has content
               if [ -f "traefik-access.log" ] && [ -s "traefik-access.log" ]; then
+                # Archive current log
                 cp traefik-access.log "oc-${YEAR}-${MONTH}.log"
-                
-                # Empty the original file instead of removing it
-                # This avoids issues if Traefik has the file open
+                # Empty original file
                 > traefik-access.log
-                
-                echo "Log rotated: oc-${YEAR}-${MONTH}.log"
-              else
-                echo "No logs to rotate"
               fi
               
-              # Optional: remove logs older than 5 years (1825 days)
+              # Remove logs older than 5 years
               find /var/log/traefik -name "oc-*.log" -mtime +1825 -delete
             volumeMounts:
             - name: logs
