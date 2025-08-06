@@ -1,41 +1,57 @@
-#traefik crontab
----
+#TRAEFIK crontab, 4 YAML files
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: traefik-logrotate-simple
   namespace: default
 spec:
-  # Run at 1:00 AM on the first day of every month
-  schedule: "0 1 1 * *"
+  # Run at 00:01 AM on the first day of every month
+  schedule: "1 0 1 * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       template:
         spec:
+          serviceAccountName: logrotate-sa
           containers:
           - name: logrotate
-            image: alpine:latest
+            image: bitnami/kubectl:latest
             command:
-            - /bin/sh
+            - /bin/bash
             - -c
             - |
-              # Change to log directory
+              echo "====== STARTING LOG ROTATION $(date) ======"
+              
+              
+              echo "Stopping Traefik..."
+              kubectl scale deployment traefik --replicas=0 -n default
+              
+              
+              sleep 5
+              
+              
+              echo "Moving log file..."
               cd /var/log/traefik
               
-              # Get previous month
               YEAR=$(date -d "last month" +%Y)
               MONTH=$(date -d "last month" +%m)
               
-              # Check if log exists and has content
-              if [ -f "traefik-access.log" ] && [ -s "traefik-access.log" ]; then
-                # Archive current log
-                cp traefik-access.log "oc-${YEAR}-${MONTH}.log"
-                # Empty original file
-                > traefik-access.log
+              if [ -f "traefik-access.log" ]; then
+                mv traefik-access.log "oc-${YEAR}-${MONTH}.log"
+                echo "Log moved to oc-${YEAR}-${MONTH}.log"
+              else
+                echo "No log file found"
               fi
               
-              # Remove logs older than 5 years
+              
+              echo "Starting Traefik..."
+              kubectl scale deployment traefik --replicas=1 -n default
+              
+              # Pulisci vecchi log (più di 5 anni)
               find /var/log/traefik -name "oc-*.log" -mtime +1825 -delete
+              
+              echo "====== ROTATION COMPLETED $(date) ======"
             volumeMounts:
             - name: logs
               mountPath: /var/log/traefik
@@ -45,6 +61,43 @@ spec:
           - name: logs
             persistentVolumeClaim:
               claimName: nfs-log-dir-claim
+
+---
+# ServiceAccount for kubectl
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: logrotate-sa
+  namespace: default
+
+---
+# permission to scale deployments on default namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: traefik-scale-role
+  namespace: default
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments", "deployments/scale"]
+  verbs: ["get", "patch", "update", "list"]
+
+---
+# Binding to default namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: logrotate-traefik-scale
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: traefik-scale-role
+subjects:
+- kind: ServiceAccount
+  name: logrotate-sa
+  namespace: default
+############ END traefik crontab
 
 
 ---
