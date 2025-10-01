@@ -16,7 +16,7 @@ spec:
           serviceAccountName: logrotate-sa
           containers:
           - name: logrotate
-            image: bitnami/kubectl:latest
+            image: bitnamilegacy/kubectl:1.33.4
             command:
             - /bin/bash
             - -c
@@ -38,8 +38,18 @@ spec:
               MONTH=$(date -d "last month" +%m)
               
               if [ -f "traefik-access.log" ]; then
-                mv traefik-access.log "oc-${YEAR}-${MONTH}.log"
-                echo "Log moved to oc-${YEAR}-${MONTH}.log"
+                # Controlla se il file di destinazione esiste già
+                if [ -f "oc-${YEAR}-${MONTH}.log" ]; then
+                  EPOCH=$(date +%s)
+                  TARGET_FILE="oc-${YEAR}-${MONTH}_${EPOCH}.log"
+                  echo "File oc-${YEAR}-${MONTH}.log già esistente, creo: ${TARGET_FILE}"
+                else
+                  TARGET_FILE="oc-${YEAR}-${MONTH}.log"
+                  echo "Creo nuovo file: ${TARGET_FILE}"
+                fi
+                
+                mv traefik-access.log "${TARGET_FILE}"
+                echo "Log spostato in ${TARGET_FILE}"
               else
                 echo "No log file found"
               fi
