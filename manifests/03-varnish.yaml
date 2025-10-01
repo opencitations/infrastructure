@@ -50,6 +50,13 @@ data:
         .port = "80";
     }
 
+    backend statistics {
+        .host = "oc-statistics-service.default.svc.cluster.local";
+        .first_byte_timeout = 900s;
+        .between_bytes_timeout = 900s;
+        .port = "80";
+    }
+
     sub rate_limit {
         # Check if host ends with opencitations.net
         if (req.http.host ~ "opencitations\.net$") {
@@ -128,6 +135,9 @@ data:
             return (pass);
         } elsif (req.http.host == "ldd.opencitations.net") {
             set req.backend_hint = ldd;
+            return (pass);
+        } elsif (req.http.host == "statistics.opencitations.net") {
+            set req.backend_hint = statistics;
             return (pass);
         } elsif (req.http.host == "search.opencitations.net") {
             set req.backend_hint = search;

@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-statistics
+  namespace: default
+  labels:
+    app: oc-statistics
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oc-statistics
+  template:
+    metadata:
+      labels:
+        app: oc-statistics
+    spec:
+      containers:
+        - name: oc-statistics
+          image: opencitations/oc_statistics:${STATISTICS_WEBSITE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: BASE_URL
+              value: "${STATISTICS_BASE_URL}"
+            - name: LOG_DIR
+              value: "${NFS_LOG_PATH}"
+            - name: STATS_DIR
+              value: "${NFS_PUBLIC_LOGS_PROMETHEUS_PATH}"
+          resources:
+            limits:
+              cpu: "1"
+              memory: "4Gi"
+            requests:
+              memory: 1Gi
+              cpu: 300m
+          volumeMounts:
+            - name: log-storage
+              mountPath: ${NFS_LOG_PATH}
+            - name: public-logs
+              mountPath: ${NFS_PUBLIC_LOGS_PATH}
+      volumes:
+        - name: log-storage
+          persistentVolumeClaim:
+            claimName: nfs-log-dir-claim
+        - name: public-logs
+          persistentVolumeClaim:
+            claimName: public-logs-claim
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+ name: oc-statistics-service
+ namespace: default
+ labels:
+   app: oc-statistics
+spec:
+ selector:
+   app: oc-statistics
+ ports:
+   - name: http
+     port: 80
+     protocol: TCP
+     targetPort: 8080
+ type: ClusterIP
+---
+
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-statistics
+ namespace: default
+ labels:
+   app: oc-statistics
+spec:
+ entryPoints:
+   - websecure
+ routes:
+   - kind: Rule
+     match: Host(`${STATISTICS_BASE_URL}`)
+     services:
+       - name: varnish-service
+         port: 80
+ tls:
+   certResolver: myresolver
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+ name: oc-statistics-http-only
+ namespace: default
+ labels:
+   app: oc-statistics
+spec:
+ entryPoints:
+   - web
+ routes:
+   - kind: Rule
+     match: Host(`${STATISTICS_BASE_URL}`)
+     middlewares:
+       - name: redirect-to-https
+     services:
+       - name: varnish-service
+         port: 80

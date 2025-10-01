@@ -86,3 +86,33 @@ spec:
     requests:
       storage: 500Gi
   volumeName: nfs-log-dir
+
+---
+
+# Public logs directory configurations (CSV AND PROM files)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: public-logs
+spec:
+  capacity:
+    storage: 250Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  nfs:
+    path: "${NFS_PUBLIC_LOGS_PATH}"
+    server: "${NFS_SERVER}"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: public-logs-claim
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 250Gi
+  volumeName: public-logs
