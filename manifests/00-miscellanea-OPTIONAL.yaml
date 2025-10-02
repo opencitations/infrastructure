@@ -179,3 +179,161 @@ spec:
               configMap:
                 name: varnish-warmup-script
 # END varnish warmup script for Wordpress
+
+---
+
+
+#Script that transforms logs from traefik format to csv, and to prometheus format
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: statistics-csv-and-prom
+  namespace: default
+  labels:
+    app: statistics-csv-and-prom
+spec:
+  # Primo giorno di ogni mese alle 9:00
+  schedule: "0 9 1 * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: statistics-csv-and-prom
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: statistics-processor
+            image: python:3.12-slim
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              echo "==================================="
+              echo "Statistics CSV and Prom Job Started"
+              echo "Timestamp: $(date)"
+              echo "==================================="
+              
+              # Install git and required tools
+              echo "Installing dependencies..."
+              apt-get update -qq
+              apt-get install -y git curl
+              
+              # Clone repository
+              echo "Cloning repository..."
+              cd /tmp
+              git clone --branch scripts --single-branch https://github.com/opencitations/oc_statistics.git
+              cd oc_statistics
+              
+              # Install Python dependencies from repository
+              if [ -f requirements.txt ]; then
+                echo "Installing Python dependencies..."
+                pip install --no-cache-dir -r requirements.txt
+              fi
+              
+              echo "==================================="
+              echo "Repository contents:"
+              ls -la
+              echo "==================================="
+              
+              # Compress last month's log file
+              echo ""
+              echo "==================================="
+              echo "Compressing last month's log file..."
+              YEAR=$(date -d "last month" +%Y)
+              MONTH=$(date -d "last month" +%m)
+              
+              echo "Target: oc-${YEAR}-${MONTH}.log"
+              
+              # Compress the log file
+              if [ -f "${LOG_DIR}/traefik/oc-${YEAR}-${MONTH}.log" ]; then
+                echo "Compressing: oc-${YEAR}-${MONTH}.log"
+                gzip -c ${LOG_DIR}/traefik/oc-${YEAR}-${MONTH}.log > ${LOG_DIR}/traefik/gzip/oc-${YEAR}-${MONTH}.log.gz
+                echo "✓ Compressed to: ${LOG_DIR}/traefik/gzip/oc-${YEAR}-${MONTH}.log.gz"
+                
+                # Show file sizes
+                echo "Original size: $(du -h ${LOG_DIR}/traefik/oc-${YEAR}-${MONTH}.log | cut -f1)"
+                echo "Compressed size: $(du -h ${LOG_DIR}/traefik/gzip/oc-${YEAR}-${MONTH}.log.gz | cut -f1)"
+              else
+                echo "✗ ERROR: Log file not found: ${LOG_DIR}/traefik/oc-${YEAR}-${MONTH}.log"
+                echo "Available files in ${LOG_DIR}/traefik/:"
+                ls -lh ${LOG_DIR}/traefik/ || echo "Directory not accessible"
+                exit 1
+              fi
+              echo "==================================="
+              
+              # Execute statistics scripts
+              echo ""
+              echo "==================================="
+              echo "Executing statistics scripts..."
+              echo "==================================="
+              
+              # Step 1: Parse Traefik logs and generate CSV
+              echo ""
+              echo "Step 1: Parsing Traefik logs..."
+              echo "Command: python3.12 ./01-normalization/traefik_parser.py ./01-normalization/GeoLite2-Country.mmdb ${LOG_DIR}/traefik/gzip/oc-${YEAR}-${MONTH}.log.gz"
+              echo "Output: ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv"
+              
+              python3.12 ./01-normalization/traefik_parser.py ./01-normalization/GeoLite2-Country.mmdb ${LOG_DIR}/traefik/gzip/oc-${YEAR}-${MONTH}.log.gz > ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv
+              
+              if [ $? -eq 0 ]; then
+                echo "✓ CSV file generated successfully"
+                echo "Size: $(du -h ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv | cut -f1)"
+              else
+                echo "✗ ERROR: Failed to generate CSV file"
+                exit 1
+              fi
+              
+              # Step 2: Convert CSV to Prometheus format
+              echo ""
+              echo "Step 2: Converting CSV to Prometheus format..."
+              echo "Command: python3.12 ./02-log_to_prometheus/log_to_prom.py ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv -o ${PUBLIC_LOGS_DIR}/prom/oc-${YEAR}-${MONTH}.prom"
+              
+              python3.12 ./02-log_to_prometheus/log_to_prom.py ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv -o ${PUBLIC_LOGS_DIR}/prom/oc-${YEAR}-${MONTH}.prom
+              
+              if [ $? -eq 0 ]; then
+                echo "✓ Prometheus file generated successfully"
+                echo "Size: $(du -h ${PUBLIC_LOGS_DIR}/prom/oc-${YEAR}-${MONTH}.prom | cut -f1)"
+              else
+                echo "✗ ERROR: Failed to generate Prometheus file"
+                exit 1
+              fi
+              
+              echo ""
+              echo "==================================="
+              echo "Job completed successfully"
+              echo "Timestamp: $(date)"
+              echo "==================================="
+            
+            resources:
+              requests:
+                memory: "512Mi"
+                cpu: "250m"
+              limits:
+                memory: "2Gi"
+                cpu: "1"
+            
+            volumeMounts:
+            - name: log-storage
+              mountPath: ${NFS_LOG_PATH}
+            - name: public-logs
+              mountPath: ${NFS_PUBLIC_LOGS_PATH}
+            
+            env:
+            - name: LOG_DIR
+              value: "${NFS_LOG_PATH}"
+            - name: PUBLIC_LOGS_DIR
+              value: "${NFS_PUBLIC_LOGS_PATH}"
+          
+          volumes:
+          - name: log-storage
+            persistentVolumeClaim:
+              claimName: nfs-log-dir-claim
+          - name: public-logs
+            persistentVolumeClaim:
+              claimName: public-logs-claim
