@@ -6,7 +6,7 @@ metadata:
   labels:
     app: oc-api
 spec:
-  replicas: 3
+  replicas: 4
   selector:
     matchLabels:
       app: oc-api
@@ -47,13 +47,10 @@ spec:
           resources:
             limits:
               cpu: "2"
-              memory: "8Gi"
+              memory: "12Gi"
             requests:
-              memory: 4Gi
-              cpu: 800m
-          volumeMounts:
-            - name: log-storage
-              mountPath: /mnt/log_dir
+              memory: 8Gi
+              cpu: "1"
           # Health Checks
           livenessProbe:
             httpGet:
@@ -75,10 +72,6 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 3
             successThreshold: 1
-      volumes:
-        - name: log-storage
-          persistentVolumeClaim:
-            claimName: nfs-log-dir-claim
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---
