@@ -20,7 +20,7 @@ RUN apt-get update && \
     printf "\n\n\n\n\n" | pecl install redis && \
     docker-php-ext-enable redis && \
     service sendmail start || true && \
-    service apache2 reload
+    service apache2 restart
 
 USER www-data
 ```
