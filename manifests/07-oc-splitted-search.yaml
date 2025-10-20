@@ -43,8 +43,8 @@ spec:
               cpu: "1"
               memory: "4Gi"
             requests:
-              memory: 1Gi
-              cpu: 300m
+              memory: 2Gi
+              cpu: 500m
           volumeMounts:
             - name: log-storage
               mountPath: /mnt/log_dir

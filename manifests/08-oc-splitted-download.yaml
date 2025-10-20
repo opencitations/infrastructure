@@ -36,7 +36,7 @@ spec:
               value: ${META_DBA_PASSWORD}
           resources:
             limits:
-              cpu: "1"
+              cpu: "600m"
               memory: "2Gi"
             requests:
               memory: 1Gi

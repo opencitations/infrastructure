@@ -32,7 +32,7 @@ spec:
               value: "${NFS_PUBLIC_LOGS_PROMETHEUS_PATH}"
           resources:
             limits:
-              cpu: "1"
+              cpu: "500m"
               memory: "4Gi"
             requests:
               memory: 1Gi

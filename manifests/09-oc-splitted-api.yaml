@@ -6,7 +6,7 @@ metadata:
   labels:
     app: oc-api
 spec:
-  replicas: 4
+  replicas: 3
   selector:
     matchLabels:
       app: oc-api
@@ -26,6 +26,10 @@ spec:
           env:
             - name: BASE_URL
               value: "${API_BASE_URL}"
+            - name: SPARQL_ENDPOINT_INDEX
+              value: "${SPARQL_ENDPOINT_INDEX}"
+            - name: SPARQL_ENDPOINT_META
+              value: "${SPARQL_ENDPOINT_META}"
             - name: REDIS_ENABLED
               value: "${REDIS_ENABLED}"
             - name: REDIS_HOST
@@ -50,16 +54,16 @@ spec:
               memory: "12Gi"
             requests:
               memory: 8Gi
-              cpu: "1"
+              cpu: "2"
           # Health Checks
           livenessProbe:
             httpGet:
               path: /
               port: 8080
               scheme: HTTP
-            initialDelaySeconds: 30
-            periodSeconds: 25
-            timeoutSeconds: 10
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 15
             failureThreshold: 3
             successThreshold: 1
           readinessProbe:
@@ -67,7 +71,7 @@ spec:
               path: /
               port: 8080
               scheme: HTTP
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
