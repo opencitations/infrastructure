@@ -200,9 +200,13 @@ spec:
       labels:
         app: ${WORDPRESS_SERVICE_NAME}
     spec:
+      hostAliases:
+      - ip: "${IP_RANGE_START}"
+        hostnames:
+          - "${WORDPRESS_DOMAIN}"
       containers:
         - name: wordpress
-          image: opencitations/oc_wordpress:wp-custom06
+          image: opencitations/oc_wordpress:${WP_CUSTOM_IMAGE}
           ports:
             - containerPort: 80
               name: wordpress
