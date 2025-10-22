@@ -51,7 +51,7 @@ spec:
               cpu: ${INDEX_CPU_REQUEST}
               memory: ${INDEX_MEMORY_REQUEST}
             limits:
-              cpu: 6
+              cpu: 4
               memory: 128Gi
           lifecycle:
             preStop:
@@ -127,7 +127,7 @@ spec:
               cpu: ${INDEX_CPU_REQUEST}
               memory: ${INDEX_MEMORY_REQUEST}
             limits:
-              cpu: 6
+              cpu: 4
               memory: 128Gi
           lifecycle:
             preStop:

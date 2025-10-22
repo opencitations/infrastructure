@@ -53,7 +53,7 @@ spec:
               cpu: ${META_CPU_REQUEST}
               memory: ${META_MEMORY_REQUEST}
             limits:
-              cpu: 6
+              cpu: 5
               memory: 128Gi
           lifecycle:
             preStop:
@@ -127,7 +127,7 @@ spec:
               cpu: ${META_CPU_REQUEST}
               memory: ${META_MEMORY_REQUEST}
             limits:
-              cpu: 6
+              cpu: 5
               memory: 128Gi
           lifecycle:
             preStop:

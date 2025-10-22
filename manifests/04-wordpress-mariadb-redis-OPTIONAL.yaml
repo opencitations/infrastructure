@@ -144,6 +144,7 @@ spec:
           resources:
             limits:
               memory: 32Gi
+              cpu: 1000m
             requests:
               cpu: 500m
               memory: 4000Mi
@@ -231,7 +232,7 @@ spec:
               memory: 8Gi
               cpu: 500m
             limits:
-              cpu: 4000m
+              cpu: 2000m
               memory: 32Gi
           volumeMounts:
             - name: wordpress-data

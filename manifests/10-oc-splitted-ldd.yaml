@@ -38,11 +38,11 @@ spec:
               value: "${LDD_REDIRECT_BASE_URL}"
           resources:
             limits:
-              cpu: "1"
+              cpu: 500m
               memory: "4Gi"
             requests:
               memory: 2Gi
-              cpu: 500m
+              cpu: 300m
           volumeMounts:
             - name: log-storage
               mountPath: /mnt/log_dir
