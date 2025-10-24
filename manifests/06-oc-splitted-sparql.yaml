@@ -6,7 +6,7 @@ metadata:
   labels:
     app: oc-sparql
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: oc-sparql
@@ -41,7 +41,7 @@ spec:
           resources:
             limits:
               cpu: "1"
-              memory: "4Gi"
+              memory: "8Gi"
             requests:
               memory: 2Gi
               cpu: 500m
