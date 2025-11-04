@@ -138,7 +138,9 @@ data:
             return (pass);
         } elsif (req.http.host == "statistics.opencitations.net") {
             set req.backend_hint = statistics;
-            return (pass);
+            if (req.url !~ "^/statistics/") {
+                return (pass);
+            }
         } elsif (req.http.host == "search.opencitations.net") {
             set req.backend_hint = search;
             return (pass); 
@@ -240,6 +242,12 @@ data:
             set beresp.grace = 0s;
             set beresp.keep = 0s;
             return (deliver);
+        }
+
+        # Cache for statistics
+        if (bereq.http.host == "statistics.opencitations.net" && bereq.url ~ "^/statistics/") {
+            set beresp.ttl = 7d;
+            set beresp.grace = 1d;
         }
 
         # Specific handling for WordPress
