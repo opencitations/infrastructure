@@ -129,13 +129,20 @@ data:
         # Route requests to the correct backend
         if (req.http.host == "sparql.opencitations.net") {
             set req.backend_hint = sparql;
-            return (pass);
+            # Allow caching for static resources only
+            if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff)$") {
+                return (pass);
+            }
         } elsif (req.http.host == "download.opencitations.net") {
             set req.backend_hint = download;
-            return (pass);
+            if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff)$") {
+                return (pass);
+            }
         } elsif (req.http.host == "ldd.opencitations.net") {
             set req.backend_hint = ldd;
-            return (pass);
+            if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff|html)$") {
+                return (pass);
+            }
         } elsif (req.http.host == "statistics.opencitations.net") {
             set req.backend_hint = statistics;
             if (req.url !~ "^/statistics/") {
@@ -143,7 +150,9 @@ data:
             }
         } elsif (req.http.host == "search.opencitations.net") {
             set req.backend_hint = search;
-            return (pass); 
+            if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff)$") {
+                return (pass);
+            }
         } elsif (req.http.host == "api.opencitations.net") {
             set req.backend_hint = api;
             
