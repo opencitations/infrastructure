@@ -108,6 +108,9 @@ data:
 
     # Handle incoming requests
     sub vcl_recv {
+        # Normalize the Host header
+        set req.http.Host = regsub(req.http.Host, ":[0-9]+", "");
+        
         # Handle real IP from upstream proxy (Traefik)
         if (req.http.X-Forwarded-For) {
             # Get the first IP from X-Forwarded-For list (the real user IP)
