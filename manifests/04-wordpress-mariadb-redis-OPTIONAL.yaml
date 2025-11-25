@@ -503,3 +503,138 @@ spec:
       services:
         - name: varnish-service
           port: 80
+
+
+---
+#QUi inizia la sezione dell'auth dei Token verso redis
+
+# ============================================================
+# OpenCitations Auth Service (Token Validation via ForwardAuth)
+# ============================================================
+# This service validates API tokens at Traefik level,
+# enabling Varnish to cache authenticated requests.
+# 
+# When deployed, this overwrites the default API IngressRoute
+# to add ForwardAuth middleware.
+# ============================================================
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-auth-service
+  namespace: default
+  labels:
+    app: oc-auth-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oc-auth-service
+  template:
+    metadata:
+      labels:
+        app: oc-auth-service
+    spec:
+      containers:
+        - name: oc-auth-service
+          image: opencitations/oc_auth_token:${AUTH_SERVICE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
+          env:
+            - name: REDIS_HOST
+              value: "${REDIS_SERVICE_NAME}.default.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "${REDIS_PORT}"
+            - name: REDIS_DB
+              value: "${REDIS_DB}"
+            - name: REDIS_PASSWORD
+              value: "${REDIS_PWD}"
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oc-auth-service
+  namespace: default
+  labels:
+    app: oc-auth-service
+spec:
+  selector:
+    app: oc-auth-service
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8000
+  type: ClusterIP
+
+---
+# Traefik ForwardAuth Middleware
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: api-token-auth
+  namespace: default
+spec:
+  forwardAuth:
+    address: http://oc-auth-service.default.svc.cluster.local/auth
+    authResponseHeaders:
+      - X-Token-Valid
+      - X-Token-Value
+
+---
+# Override API IngressRoute to include ForwardAuth
+# (same name as in 09-oc-splitted-api.yaml, so it overwrites)
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: oc-api
+  namespace: default
+  labels:
+    app: oc-api
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`${API_BASE_URL}`)
+      middlewares:
+        - name: api-token-auth
+        - name: meta-v1-api-redirects
+        - name: index-v1v2-api-redirects
+        - name: url-decode-forwardslash
+        - name: metadata-index-v1-stop-cors
+      services:
+        - name: varnish-service
+          port: 80
+  tls:
+    certResolver: myresolver
