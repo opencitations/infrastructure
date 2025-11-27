@@ -15,38 +15,17 @@ Request → Traefik → ForwardAuth → oc-auth-service → Redis
 
 ## Files
 
+You can find these files on this GitHub Repo -> https://github.com/opencitations/oc_auth_token
+
 | File | Purpose |
 |------|---------|
 | `oc_auth_service/app/main.py` | FastAPI auth service |
 | `oc_auth_service/Dockerfile` | Docker image |
-| `04-wordpress-mariadb-redis-OPTIONAL.yaml` | Deployment + ForwardAuth middleware + IngressRoute override |
-
-## Update version
-
-```bash
-cd oc_auth_service
-
-# Build new version
-docker build -t opencitations/oc_auth_token:X.X.X .
-
-# Push
-docker push opencitations/oc_auth_token:X.X.X
-
-# Update .env
-AUTH_SERVICE_VERSION=X.X.X
-```
+| `04-wordpress-mariadb-redis-authtoken-OPTIONAL.yaml` | Deployment + ForwardAuth middleware + IngressRoute override |
 
 ## Deploy
 
-**Important:** `04-wordpress-mariadb-redis-OPTIONAL.yaml` overwrites the `oc-api` IngressRoute to add ForwardAuth.
-
-```bash
-# Deploy auth service + IngressRoute override
-python3.11 ./deploy.py manifests/04-wordpress-mariadb-redis-OPTIONAL.yaml
-
-# If you also changed Varnish
-python3.11 ./deploy.py manifests/03-varnish.yaml
-```
+**Important:** `04-wordpress-mariadb-redis-authtoken-OPTIONAL.yaml` overwrites the `oc-api` (inside the file `09-oc-splitted-api.yaml`) IngressRoute to add ForwardAuth.
 
 ## Verify
 
@@ -55,10 +34,10 @@ python3.11 ./deploy.py manifests/03-varnish.yaml
 kubectl get pods -l app=oc-auth-service
 
 # Test invalid token (should return 403)
-curl -I -H "Authorization: fake-token" https://api.opencitations.net/meta/v1/metadata/doi:10.1162/qss_a_00023
+curl -i -H "Authorization: fake-token" https://api.opencitations.net/meta/v1/metadata/doi:10.1162/qss_a_00023
 
 # Test valid request (should return 200, X-Cache: HIT after first call)
-curl -I https://api.opencitations.net/meta/v1/metadata/doi:10.1162/qss_a_00023
+curl -i https://api.opencitations.net/meta/v1/metadata/doi:10.1162/qss_a_00023
 ```
 
 ## Rollback
