@@ -108,6 +108,11 @@ data:
 
     # Handle incoming requests
     sub vcl_recv {
+        # Health check endpoint for Kubernetes probes
+        if (req.url == "/varnish-health" && req.http.host == "varnish-health") {
+            return (synth(200, "OK"));
+        }
+
         # Normalize the Host header
         set req.http.Host = regsub(req.http.Host, ":[0-9]+", "");
         
@@ -365,6 +370,13 @@ data:
 
     # Handle synthetic errors
     sub vcl_synth {
+        # Health check endpoint response
+        if (resp.status == 200 && req.url == "/varnish-health") {
+            set resp.http.Content-Type = "text/plain";
+            set resp.body = "OK";
+            return (deliver);
+        }
+
         # Handle CORS preflight responses
         if (req.http.X-CORS-Preflight == "true") {
             set resp.http.Content-Type = "text/plain";
@@ -462,7 +474,7 @@ metadata:
  labels:
    app: varnish
 spec:
- replicas: 2
+ replicas: 1
  revisionHistoryLimit: 30
  progressDeadlineSeconds: 600
  selector:
@@ -490,17 +502,39 @@ spec:
            - '-f'
            - /etc/varnish/default.vcl
            - '-s'
-           - malloc,8g
+           - malloc,16g
+           - '-p'
+           - thread_pool_min=50
+           - '-p'
+           - thread_pool_max=2000
+           - '-p'
+           - thread_pool_timeout=120
          ports:
            - containerPort: 80
              protocol: TCP
          resources:
            limits:
-             memory: 12Gi
-             cpu: 2
+             memory: 20Gi
+             cpu: 5
            requests:
-             memory: 10Gi
-             cpu: 1
+             memory: 18Gi
+             cpu: 4
+         livenessProbe:
+           tcpSocket:
+             port: 80
+           initialDelaySeconds: 10
+           periodSeconds: 10
+           failureThreshold: 3
+         readinessProbe:
+           httpGet:
+             path: /varnish-health
+             port: 80
+             httpHeaders:
+               - name: Host
+                 value: "varnish-health"
+           initialDelaySeconds: 5
+           periodSeconds: 5
+           failureThreshold: 2
          volumeMounts:
            - name: varnish-config
              mountPath: /etc/varnish
