@@ -502,11 +502,11 @@ spec:
            - '-f'
            - /etc/varnish/default.vcl
            - '-s'
-           - malloc,16g
+           - malloc,14g
            - '-p'
-           - thread_pool_min=50
+           - thread_pool_min=100
            - '-p'
-           - thread_pool_max=2000
+           - thread_pool_max=1800
            - '-p'
            - thread_pool_timeout=120
          ports:
@@ -514,11 +514,11 @@ spec:
              protocol: TCP
          resources:
            limits:
-             memory: 20Gi
-             cpu: 5
+             memory: 24Gi
+             cpu: 3
            requests:
-             memory: 18Gi
-             cpu: 4
+             memory: 24Gi
+             cpu: 3
          livenessProbe:
             httpGet:
                 path: /varnish-health
