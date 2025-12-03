@@ -54,7 +54,7 @@ spec:
               memory: ${META_MEMORY_REQUEST}
             limits:
               cpu: 5
-              memory: 128Gi
+              memory: 100Gi
           lifecycle:
             preStop:
               exec:

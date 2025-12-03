@@ -520,11 +520,16 @@ spec:
              memory: 18Gi
              cpu: 4
          livenessProbe:
-           tcpSocket:
-             port: 80
-           initialDelaySeconds: 10
-           periodSeconds: 10
-           failureThreshold: 3
+            httpGet:
+                path: /varnish-health
+                port: 80
+                httpHeaders:
+                - name: Host
+                  value: "varnish-health"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
          readinessProbe:
            httpGet:
              path: /varnish-health
