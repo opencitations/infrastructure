@@ -102,7 +102,7 @@ spec:
           command:
             - bash
             - '-c'
-            - 'ServerMain -i oc_index -j 15 -p 7011 -m 120G -c 55G -e 5G -k 100 -s 320s 2>&1 | tee oc_index.server-log.txt'
+            - 'ServerMain -i oc_index -j 10 -p 7011 -m 90G -c 40G -e 5G -k 300 -s 320s 2>&1'
           ports:
             - containerPort: 7011
               protocol: TCP
@@ -121,11 +121,11 @@ spec:
             initialDelaySeconds: 340
             periodSeconds: 60
             timeoutSeconds: 15
-            failureThreshold: 2
+            failureThreshold: 3
           resources:
             requests:
-              cpu: ${INDEX_CPU_REQUEST}
-              memory: ${INDEX_MEMORY_REQUEST}
+              cpu: 3
+              memory: 96Gi
             limits:
               cpu: 4
               memory: 128Gi
