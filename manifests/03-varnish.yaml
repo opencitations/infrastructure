@@ -474,7 +474,7 @@ metadata:
  labels:
    app: varnish
 spec:
- replicas: 1
+ replicas: 2
  revisionHistoryLimit: 30
  progressDeadlineSeconds: 600
  selector:
@@ -502,23 +502,23 @@ spec:
            - '-f'
            - /etc/varnish/default.vcl
            - '-s'
-           - malloc,14g
+           - malloc,12g
            - '-p'
-           - thread_pool_min=100
+           - thread_pool_min=50
            - '-p'
-           - thread_pool_max=1800
+           - thread_pool_max=600
            - '-p'
-           - thread_pool_timeout=120
+           - thread_pool_timeout=400
          ports:
            - containerPort: 80
              protocol: TCP
          resources:
            limits:
-             memory: 24Gi
+             memory: 20Gi
              cpu: 3
            requests:
-             memory: 24Gi
-             cpu: 3
+             memory: 16Gi
+             cpu: 2
          livenessProbe:
             httpGet:
                 path: /varnish-health
