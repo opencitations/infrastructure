@@ -489,7 +489,7 @@ spec:
    spec:
      containers:
        - name: varnish
-         image: varnish:7.6.0
+         image: varnish:7.7.3
          imagePullPolicy: Always
          securityContext:
            capabilities:
@@ -514,8 +514,8 @@ spec:
              protocol: TCP
          resources:
            limits:
-             memory: 20Gi
-             cpu: 3
+             memory: 18Gi
+             cpu: 2
            requests:
              memory: 16Gi
              cpu: 2
