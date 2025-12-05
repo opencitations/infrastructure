@@ -51,10 +51,10 @@ spec:
           resources:
             limits:
               cpu: "2"
-              memory: "12Gi"
+              memory: "8Gi"
             requests:
               memory: 8Gi
-              cpu: "2"
+              cpu: "1"
           # Health Checks
           livenessProbe:
             httpGet:
