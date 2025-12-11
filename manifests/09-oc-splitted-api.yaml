@@ -15,6 +15,15 @@ spec:
       labels:
         app: oc-api
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: oc-api
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: oc-api
           image: opencitations/oc_api:${API_WEBSITE_VERSION}

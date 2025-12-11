@@ -15,6 +15,15 @@ spec:
       labels:
         app: oc-search
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: oc-search
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: oc-search
           image: opencitations/oc_search:${SEARCH_WEBSITE_VERSION}
@@ -45,13 +54,6 @@ spec:
             requests:
               memory: 2Gi
               cpu: 500m
-          volumeMounts:
-            - name: log-storage
-              mountPath: /mnt/log_dir
-      volumes:
-        - name: log-storage
-          persistentVolumeClaim:
-            claimName: nfs-log-dir-claim
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---

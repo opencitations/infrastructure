@@ -6,7 +6,7 @@ metadata:
   labels:
     app: oc-sparql
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: oc-sparql
@@ -15,6 +15,15 @@ spec:
       labels:
         app: oc-sparql
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: oc-sparql
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: oc-sparql
           image: opencitations/oc_sparql:${SPARQL_WEBSITE_VERSION}
@@ -45,13 +54,26 @@ spec:
             requests:
               memory: 2Gi
               cpu: 500m
-          volumeMounts:
-            - name: log-storage
-              mountPath: /mnt/log_dir
-      volumes:
-        - name: log-storage
-          persistentVolumeClaim:
-            claimName: nfs-log-dir-claim
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 15
+            failureThreshold: 3
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---

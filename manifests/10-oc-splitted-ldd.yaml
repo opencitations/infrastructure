@@ -15,6 +15,15 @@ spec:
       labels:
         app: oc-ldd
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: oc-ldd
+                topologyKey: kubernetes.io/hostname
       containers:
         - name: oc-ldd
           image: opencitations/oc_ldd:${LDD_WEBSITE_VERSION}
@@ -43,13 +52,6 @@ spec:
             requests:
               memory: 2Gi
               cpu: 300m
-          volumeMounts:
-            - name: log-storage
-              mountPath: /mnt/log_dir
-      volumes:
-        - name: log-storage
-          persistentVolumeClaim:
-            claimName: nfs-log-dir-claim
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---
