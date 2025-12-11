@@ -302,6 +302,26 @@ spec:
               value: ${META_USER}
             - name: META_PASSWORD
               value: ${META_DBA_PASSWORD}
+          livenessProbe:
+          httpGet:
+            path: /health              
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10          
+          failureThreshold: 5          
+          successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /health             
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           resources:
             limits:
               cpu: 500m
