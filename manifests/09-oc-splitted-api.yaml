@@ -63,7 +63,7 @@ spec:
               memory: "8Gi"
             requests:
               memory: 8Gi
-              cpu: "1"
+              cpu: "2"
           # Health Checks
           livenessProbe:
             httpGet:

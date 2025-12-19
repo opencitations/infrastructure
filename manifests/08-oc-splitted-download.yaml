@@ -41,13 +41,6 @@ spec:
             requests:
               memory: 1Gi
               cpu: 200m
-          volumeMounts:
-            - name: log-storage
-              mountPath: /mnt/log_dir
-      volumes:
-        - name: log-storage
-          persistentVolumeClaim:
-            claimName: nfs-log-dir-claim
       dnsPolicy: ClusterFirst
       restartPolicy: Always
 ---
