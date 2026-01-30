@@ -50,6 +50,13 @@ data:
         .port = "80";
     }
 
+    backend oci {
+        .host = "oc-oci-service.default.svc.cluster.local";
+        .first_byte_timeout = 900s;
+        .between_bytes_timeout = 900s;
+        .port = "80";
+    }
+
     backend statistics {
         .host = "oc-statistics-service.default.svc.cluster.local";
         .first_byte_timeout = 900s;
@@ -68,7 +75,7 @@ data:
                 }
                 # Apply rate limit using real IP
                 if (req.http.User-Agent !~ "StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-                    if (vsthrottle.is_denied(req.http.X-Real-IP, 350, 60s)) {
+                    if (vsthrottle.is_denied(req.http.X-Real-IP, 200, 60s)) {
                         # Add informative headers before blocking
                         set req.http.X-Rate-Limit-Exceeded = "true";
                         set req.http.X-Rate-Limit = "100";
@@ -84,7 +91,7 @@ data:
                 }
                 # Apply global rate limit per IP
                 if (req.http.User-Agent !~ "StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-                    if (vsthrottle.is_denied(client.ip, 350, 60s)) {
+                    if (vsthrottle.is_denied(client.ip, 200, 60s)) {
                         # Add informative headers before blocking
                         set req.http.X-Rate-Limit-Exceeded = "true";
                         set req.http.X-Rate-Limit = "100";
@@ -148,6 +155,11 @@ data:
             }
         } elsif (req.http.host == "ldd.opencitations.net") {
             set req.backend_hint = ldd;
+            if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff|html)$") {
+                return (pass);
+            }
+        } elsif (req.http.host == "oci.opencitations.net") {
+            set req.backend_hint = oci;
             if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff|html)$") {
                 return (pass);
             }
@@ -328,7 +340,7 @@ data:
     # Deliver responses to client
     sub vcl_deliver {
         # Add CORS headers for API and SPARQL requests
-        if (req.http.host == "api.opencitations.net" || req.http.host == "sparql.opencitations.net" || req.http.host == "opencitations.net" || req.http.host == "ldd.opencitations.net") {
+        if (req.http.host == "api.opencitations.net" || req.http.host == "sparql.opencitations.net" || req.http.host == "opencitations.net" || req.http.host == "oci.opencitations.net" || req.http.host == "ldd.opencitations.net") {
             # Allow specific origins or all origins
             if (req.http.Origin) {
                 set resp.http.Access-Control-Allow-Origin = req.http.Origin;
