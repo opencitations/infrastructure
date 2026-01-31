@@ -312,7 +312,7 @@ metadata:
 spec:
   redirectRegex:
     regex: .*/oci/(.*)
-    replacement: https://ldd.opencitations.net/index/ci/${1}
+    replacement: https://oci.opencitations.net/index/ci/${1}
     permanent: true
 
 ---
@@ -323,8 +323,8 @@ metadata:
   name: oci-redirects-querystring
 spec:
   redirectRegex:
-    regex: .*/oci\?oci=(.*)
-    replacement: https://ldd.opencitations.net/index/ci/${1}
+    regex: .*/(oci)?\?oci=(.*)
+    replacement: https://oci.opencitations.net/?oci=${2}
     permanent: true
 
 ---
