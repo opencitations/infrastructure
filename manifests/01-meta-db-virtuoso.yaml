@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: virtuoso
-          image: openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010
+          image: openlink/virtuoso-opensource-7:7.2.16
           imagePullPolicy: IfNotPresent
           env:
             - name: DBA_PASSWORD
@@ -95,7 +95,7 @@ spec:
     spec:
       containers:
         - name: virtuoso
-          image: openlink/virtuoso-opensource-7@sha256:e07868a3db9090400332eaa8ee694b8cf9bf7eebc26db6bbdc3bb92fd30ed010
+          image: openlink/virtuoso-opensource-7:7.2.16
           imagePullPolicy: IfNotPresent
           env:
             - name: DBA_PASSWORD
