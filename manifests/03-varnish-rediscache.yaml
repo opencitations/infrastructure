@@ -1,3 +1,146 @@
+# =============================================================================
+# Redis API Cache — Deployment + Service
+# =============================================================================
+# Single deployment with 2 containers:
+#   - redis: in-memory cache (no persistence, ephemeral)
+#   - proxy: HTTP reverse proxy that caches responses in Redis
+#
+# Flow: Varnish -> redis-api-cache-service:80 -> (proxy:8888 <-> redis:6379) -> oc-api-service
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-api-cache
+  namespace: default
+  labels:
+    app: redis-api-cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-api-cache
+  template:
+    metadata:
+      labels:
+        app: redis-api-cache
+    spec:
+      containers:
+        # ---- Redis (sidecar) ----
+        - name: redis
+          image: redis:7.4-alpine
+          args:
+            - redis-server
+            - "--maxmemory"
+            - "16gb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
+            - "--save"
+            - ""
+            - "--appendonly"
+            - "no"
+            - "--tcp-backlog"
+            - "511"
+            - "--timeout"
+            - "0"
+            - "--loglevel"
+            - "notice"
+          ports:
+            - containerPort: 6379
+              protocol: TCP
+          resources:
+            requests:
+              memory: 16Gi
+              cpu: 500m
+            limits:
+              memory: 18Gi
+              cpu: "1"
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+        # ---- HTTP Cache Proxy ----
+        - name: proxy
+          image: opencitations/redis-api-cache-proxy:${REDIS_API_CACHE_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8888
+              name: http
+              protocol: TCP
+          env:
+            - name: REDIS_HOST
+              value: "127.0.0.1"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: BACKEND_HOST
+              value: "oc-api-service.default.svc.cluster.local"
+            - name: BACKEND_PORT
+              value: "80"
+            - name: LISTEN_PORT
+              value: "8888"
+            - name: CACHE_TTL
+              value: "10368000"  # 120 days in seconds
+            - name: MAX_BODY_CACHE
+              value: "52428800"  # 50 MB in bytes
+            - name: LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 200m
+            limits:
+              memory: 1Gi
+              cpu: "1"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8888
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8888
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-api-cache-service
+  namespace: default
+  labels:
+    app: redis-api-cache
+spec:
+  selector:
+    app: redis-api-cache
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8888
+      protocol: TCP
+  type: ClusterIP
+
+---
+
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -37,7 +180,8 @@ data:
     }
 
     backend api {
-        .host = "oc-api-service.default.svc.cluster.local";
+        #.host = "oc-api-service.default.svc.cluster.local";
+        .host = "redis-api-cache-service.default.svc.cluster.local";
         .first_byte_timeout = 900s;
         .between_bytes_timeout = 900s;
         .port = "80";
@@ -514,7 +658,7 @@ spec:
            - '-f'
            - /etc/varnish/default.vcl
            - '-s'
-           - malloc,12g
+           - malloc,8g
            - '-p'
            - thread_pool_min=50
            - '-p'
