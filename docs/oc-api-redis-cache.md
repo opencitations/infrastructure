@@ -26,6 +26,15 @@ CMD ["python", "proxy.py"]
 
 ```python
 #!/usr/bin/env python3
+"""
+OpenCitations Redis API Cache Proxy
+====================================
+Sits between Varnish and oc-api-service.
+Caches API responses in Redis keyed by URL + Accept header.
+
+Flow: Varnish -> this proxy -> oc-api-service
+"""
+
 import asyncio
 import hashlib
 import json
@@ -38,26 +47,44 @@ import aiohttp
 from aiohttp import web
 import redis.asyncio as aioredis
 
+# ---------------------------------------------------------------------------
+# Configuration (from environment variables)
+# ---------------------------------------------------------------------------
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 BACKEND_HOST = os.getenv("BACKEND_HOST", "oc-api-service.default.svc.cluster.local")
 BACKEND_PORT = int(os.getenv("BACKEND_PORT", "80"))
 LISTEN_PORT = int(os.getenv("LISTEN_PORT", "8888"))
-CACHE_TTL = int(os.getenv("CACHE_TTL", str(120 * 86400)))
-MAX_BODY_CACHE = int(os.getenv("MAX_BODY_CACHE", str(50 * 1024 * 1024)))
+CACHE_TTL = int(os.getenv("CACHE_TTL", str(120 * 86400)))  # 120 days default
+MAX_BODY_CACHE = int(os.getenv("MAX_BODY_CACHE", str(50 * 1024 * 1024)))  # 50 MB max
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
+# Only cache actual API data endpoints, not documentation pages
+# Matches: /index/v1/<id>, /index/v2/<id>, /meta/v1/<id>
 API_PATH_PATTERN = re.compile(r"^/(index/v[12]|meta/v1)/.+")
 
+# Headers to preserve in cache (lowercase)
 CACHEABLE_HEADERS = {
-    "content-type", "content-disposition", "x-total-count", "link",
+    "content-type",
+    "content-disposition",
+    "x-total-count",
+    "link",
 }
 
+# Headers to forward to backend (lowercase)
 FORWARD_HEADERS = {
-    "accept", "host", "user-agent", "x-real-ip",
-    "x-forwarded-for", "x-forwarded-proto", "authorization",
+    "accept",
+    "host",
+    "user-agent",
+    "x-real-ip",
+    "x-forwarded-for",
+    "x-forwarded-proto",
+    "authorization",
 }
 
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -66,7 +93,15 @@ logging.basicConfig(
 logger = logging.getLogger("redis-api-cache")
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 def make_cache_key(path: str, query: str, accept: str) -> str:
+    """
+    Cache key based on URL + Accept header only.
+    Method is NOT included: GET and HEAD share the same cache entry.
+    Accept IS included: different formats (json, csv, turtle) get separate entries.
+    """
     raw = path
     if query:
         raw += f"?{query}"
@@ -75,6 +110,9 @@ def make_cache_key(path: str, query: str, accept: str) -> str:
     return "apicache:" + hashlib.sha256(raw.encode()).hexdigest()
 
 
+# ---------------------------------------------------------------------------
+# Application
+# ---------------------------------------------------------------------------
 class CacheProxy:
     def __init__(self):
         self.redis: aioredis.Redis | None = None
@@ -83,10 +121,21 @@ class CacheProxy:
 
     async def start(self, app: web.Application):
         self.redis = aioredis.Redis(
-            host=REDIS_HOST, port=REDIS_PORT, decode_responses=False,
-            socket_connect_timeout=5, socket_timeout=10, retry_on_timeout=True,
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            decode_responses=False,
+            socket_connect_timeout=5,
+            socket_timeout=10,
+            retry_on_timeout=True,
+        )
+        connector = aiohttp.TCPConnector(
+            limit=100,
+            limit_per_host=100,
+            keepalive_timeout=15,       # must be < gunicorn keepalive (20s)
+            enable_cleanup_closed=True,
         )
         self.http_session = aiohttp.ClientSession(
+            connector=connector,
             timeout=aiohttp.ClientTimeout(total=900, sock_read=900),
         )
         logger.info(
@@ -102,6 +151,7 @@ class CacheProxy:
         logger.info("Cache proxy stopped")
 
     async def health(self, request: web.Request) -> web.Response:
+        """Health check endpoint for Kubernetes probes."""
         try:
             await self.redis.ping()
             return web.Response(text="OK", status=200)
@@ -110,23 +160,28 @@ class CacheProxy:
             return web.Response(text="Redis unavailable", status=503)
 
     async def handle(self, request: web.Request) -> web.Response:
+        """Main request handler with Redis cache lookup."""
         method = request.method.upper()
 
+        # Only cache GET and HEAD
         if method not in ("GET", "HEAD"):
             return await self._proxy_to_backend(request)
 
         path = request.path
         query = request.query_string
 
+        # Bypass cache for preview requests
         if "preview=true" in query:
             return await self._proxy_to_backend(request)
 
+        # Only cache actual API data endpoints, not documentation pages
         if not API_PATH_PATTERN.match(path):
             return await self._proxy_to_backend(request)
 
         accept = request.headers.get("Accept", "")
         cache_key = make_cache_key(path, query, accept)
 
+        # ---- Try Redis cache ----
         try:
             cached = await self.redis.get(cache_key)
         except Exception as e:
@@ -134,13 +189,18 @@ class CacheProxy:
             cached = None
 
         if cached:
+            # Cache HIT
             try:
                 entry = json.loads(cached)
                 headers = entry.get("headers", {})
                 headers["X-Redis-Cache"] = "HIT"
 
+                # HEAD responses: return headers only, no body
                 if method == "HEAD":
-                    return web.Response(status=entry["status"], headers=headers)
+                    return web.Response(
+                        status=entry["status"],
+                        headers=headers,
+                    )
 
                 return web.Response(
                     status=entry["status"],
@@ -149,14 +209,18 @@ class CacheProxy:
                 )
             except (json.JSONDecodeError, KeyError) as e:
                 logger.warning("Corrupted cache entry: %s", e)
+                # Fall through to backend
 
+        # ---- Cache MISS — fetch from backend ----
         return await self._proxy_to_backend(request, cache_key=cache_key)
 
     async def _proxy_to_backend(
         self, request: web.Request, cache_key: str | None = None
     ) -> web.Response:
+        """Forward request to oc-api backend and optionally cache the response."""
         url = f"{self.backend_url}{request.path_qs}"
 
+        # Build headers to forward
         fwd_headers = {}
         for name, value in request.headers.items():
             if name.lower() in FORWARD_HEADERS:
@@ -164,12 +228,16 @@ class CacheProxy:
 
         try:
             async with self.http_session.request(
-                method=request.method, url=url,
-                headers=fwd_headers, allow_redirects=False,
+                method=request.method,
+                url=url,
+                headers=fwd_headers,
+                allow_redirects=False,
             ) as backend_resp:
                 body = await backend_resp.read()
                 status = backend_resp.status
 
+                # For non-cached requests: forward ALL response headers
+                # For cached requests: only keep headers we want to store in Redis
                 resp_headers = {}
                 if cache_key:
                     for name, value in backend_resp.headers.items():
@@ -178,13 +246,16 @@ class CacheProxy:
                     resp_headers["X-Redis-Cache"] = "MISS"
                 else:
                     for name, value in backend_resp.headers.items():
+                        # Skip hop-by-hop headers that shouldn't be forwarded
                         if name.lower() not in (
                             "transfer-encoding", "connection", "keep-alive"
                         ):
                             resp_headers[name] = value
 
+                # Cache only successful GET responses within size limit
                 if (
-                    cache_key and status == 200
+                    cache_key
+                    and status == 200
                     and request.method == "GET"
                     and len(body) <= MAX_BODY_CACHE
                 ):
@@ -202,7 +273,9 @@ class CacheProxy:
                     except Exception as e:
                         logger.warning("Redis SET failed: %s", e)
 
-                return web.Response(status=status, body=body, headers=resp_headers)
+                return web.Response(
+                    status=status, body=body, headers=resp_headers
+                )
 
         except asyncio.TimeoutError:
             logger.error("Backend timeout: %s", url)
@@ -212,6 +285,9 @@ class CacheProxy:
             return web.Response(status=502, text="Backend unavailable")
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 def create_app() -> web.Application:
     proxy = CacheProxy()
     app = web.Application()

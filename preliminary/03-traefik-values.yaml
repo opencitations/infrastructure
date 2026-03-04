@@ -1,5 +1,7 @@
 #### Comment this sections if you are not using HTTPS with ACME
 additionalArguments:
+  - '--entryPoints.websecure.transport.respondingTimeouts.writeTimeout=950s'
+  - '--entryPoints.web.transport.respondingTimeouts.writeTimeout=950s'
   - '--certificatesResolvers.myresolver.acme.httpChallenge.entryPoint=web'
   - '--certificatesResolvers.myresolver.acme.email=${ACME_EMAIL}'
   - '--certificatesResolvers.myresolver.acme.storage=${ACME_PATH}'
