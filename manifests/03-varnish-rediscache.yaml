@@ -318,6 +318,11 @@ data:
                 return (pass);
             }
         } elsif (req.http.host == "api.opencitations.net") {
+            # Deprecated endpoint - return 410 Gone
+            if (req.url ~ "^/index/v1/metadata") {
+                return (synth(410, "Gone"));
+            }
+
             set req.backend_hint = api;
             
             # Token validation handled by ForwardAuth (if deployed)
@@ -546,6 +551,16 @@ data:
             set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin, DNT, User-Agent";
             set resp.http.Access-Control-Max-Age = "86400";
             set resp.body = "";
+            return (deliver);
+        }
+
+        # Handle 410 Gone for deprecated endpoints
+        if (resp.status == 410) {
+            set resp.http.Content-Type = "text/plain; charset=utf-8";
+            set resp.http.Access-Control-Allow-Origin = "*";
+            set resp.http.Access-Control-Allow-Methods = "GET, POST, HEAD, OPTIONS";
+            set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin, DNT, User-Agent";
+            set resp.body = "410 Gone - The endpoint /index/v1/metadata has been deprecated and is no longer available. See https://api.opencitations.net/ for current API documentation.";
             return (deliver);
         }
 
