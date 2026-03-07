@@ -624,7 +624,7 @@ data:
                                     <div class="icon">&#9888;</div>
                                     <h1>API Rate Limit Exceeded</h1>
                                     <p>We're sorry, but you have exceeded the allowed number of API requests.</p>
-                                    <p>Our API is limited to 200 requests per minute for all users.</p>
+                                    <p>Our API is limited to 180 requests per minute for all users.</p>
                                     <p>Please wait a few seconds before making additional requests.</p>
                                     <a href="/" class="btn">Return to Homepage</a>
                                 </div>
