@@ -167,44 +167,44 @@ data:
 
     backend search {
         .host = "oc-search-service.default.svc.cluster.local";
-        .first_byte_timeout = 900s;
-        .between_bytes_timeout = 900s;
+        .first_byte_timeout = 60s;
+        .between_bytes_timeout = 240s;
         .port = "80";
     }
 
     backend download {
         .host = "oc-download-service.default.svc.cluster.local";
-        .first_byte_timeout = 900s;
-        .between_bytes_timeout = 900s;
+        .first_byte_timeout = 20s;
+        .between_bytes_timeout = 120s;
         .port = "80";
     }
 
     backend api {
         #.host = "oc-api-service.default.svc.cluster.local";
         .host = "redis-api-cache-service.default.svc.cluster.local";
-        .first_byte_timeout = 900s;
-        .between_bytes_timeout = 900s;
+        .first_byte_timeout = 120s;
+        .between_bytes_timeout = 240s;
         .port = "80";
     }
 
     backend ldd {
         .host = "oc-ldd-service.default.svc.cluster.local";
-        .first_byte_timeout = 900s;
-        .between_bytes_timeout = 900s;
+        .first_byte_timeout = 30s;
+        .between_bytes_timeout = 240s;
         .port = "80";
     }
 
     backend oci {
         .host = "oc-oci-service.default.svc.cluster.local";
-        .first_byte_timeout = 900s;
-        .between_bytes_timeout = 900s;
+        .first_byte_timeout = 30s;
+        .between_bytes_timeout = 240s;
         .port = "80";
     }
 
     backend statistics {
         .host = "oc-statistics-service.default.svc.cluster.local";
-        .first_byte_timeout = 900s;
-        .between_bytes_timeout = 900s;
+        .first_byte_timeout = 30s;
+        .between_bytes_timeout = 240s;
         .port = "80";
     }
 
@@ -219,7 +219,7 @@ data:
                 }
                 # Apply rate limit using real IP
                 if (req.http.User-Agent !~ "StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-                    if (vsthrottle.is_denied(req.http.X-Real-IP, 200, 60s)) {
+                    if (vsthrottle.is_denied(req.http.X-Real-IP, 180, 60s)) {
                         # Add informative headers before blocking
                         set req.http.X-Rate-Limit-Exceeded = "true";
                         set req.http.X-Rate-Limit = "100";
@@ -235,7 +235,7 @@ data:
                 }
                 # Apply global rate limit per IP
                 if (req.http.User-Agent !~ "StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
-                    if (vsthrottle.is_denied(client.ip, 200, 60s)) {
+                    if (vsthrottle.is_denied(client.ip, 180, 60s)) {
                         # Add informative headers before blocking
                         set req.http.X-Rate-Limit-Exceeded = "true";
                         set req.http.X-Rate-Limit = "100";
@@ -560,6 +560,7 @@ data:
             set resp.http.Access-Control-Allow-Origin = "*";
             set resp.http.Access-Control-Allow-Methods = "GET, POST, HEAD, OPTIONS";
             set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin, DNT, User-Agent";
+            set resp.http.Server = "Apache/2.4.10 (Win32)";
             set resp.body = "410 Gone - The endpoint /index/v1/metadata has been deprecated and is no longer available. See https://api.opencitations.net/ for current API documentation.";
             return (deliver);
         }
