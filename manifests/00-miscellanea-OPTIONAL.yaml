@@ -227,7 +227,7 @@ spec:
               # Clone repository
               echo "Cloning repository..."
               cd /tmp
-              git clone --branch scripts --single-branch https://github.com/opencitations/oc_statistics.git
+              git clone --branch scripts-v2 --single-branch https://github.com/opencitations/oc_statistics.git
               cd oc_statistics
               
               # Install Python dependencies from repository
@@ -284,6 +284,12 @@ spec:
               if [ $? -eq 0 ]; then
                 echo "✓ CSV file generated successfully"
                 echo "Size: $(du -h ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv | cut -f1)"
+
+                # Compress CSV
+                gzip -c ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv > ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv.gz
+                echo "✓ Compressed CSV: $(du -h ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv.gz | cut -f1)"
+                rm ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv
+
               else
                 echo "✗ ERROR: Failed to generate CSV file"
                 exit 1
@@ -292,9 +298,9 @@ spec:
               # Step 2: Convert CSV to Prometheus format
               echo ""
               echo "Step 2: Converting CSV to Prometheus format..."
-              echo "Command: python3.12 ./02-log_to_prometheus/log_to_prom.py ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv -o ${PUBLIC_LOGS_DIR}/prom/oc-${YEAR}-${MONTH}.prom"
+              echo "Command: python3.12 ./02-log_to_prometheus/log_to_prom.py ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv.gz -o ${PUBLIC_LOGS_DIR}/prom/oc-${YEAR}-${MONTH}.prom"
               
-              python3.12 ./02-log_to_prometheus/log_to_prom.py ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv -o ${PUBLIC_LOGS_DIR}/prom/oc-${YEAR}-${MONTH}.prom
+              python3.12 ./02-log_to_prometheus/log_to_prom.py ${PUBLIC_LOGS_DIR}/csv/oc-${YEAR}-${MONTH}.csv.gz -o ${PUBLIC_LOGS_DIR}/prom/oc-${YEAR}-${MONTH}.prom
               
               if [ $? -eq 0 ]; then
                 echo "✓ Prometheus file generated successfully"
