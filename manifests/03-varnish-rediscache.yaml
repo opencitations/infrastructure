@@ -412,9 +412,23 @@ data:
 
     # Handle backend responses
     sub vcl_backend_response {
-        # Handle 4xx and 5xx responses
-        if (beresp.status >= 400) {
-            set beresp.ttl = 200s;
+        # Do not cache 429
+        if (beresp.status == 429) {
+            set beresp.uncacheable = true;
+            return (deliver);
+        }
+
+        # Cache 5xx for 5 seconds
+        if (beresp.status >= 500 && beresp.status < 600) {
+            set beresp.ttl = 5s;
+            set beresp.grace = 0s;
+            set beresp.keep = 0s;
+            return (deliver);
+        }
+
+        # Cache other 4xx
+        if (beresp.status >= 400 && beresp.status < 500) {
+            set beresp.ttl = 10s;
             set beresp.grace = 0s;
             set beresp.keep = 0s;
             return (deliver);
