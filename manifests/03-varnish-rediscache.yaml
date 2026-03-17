@@ -428,7 +428,7 @@ data:
 
         # Cache other 4xx
         if (beresp.status >= 400 && beresp.status < 500) {
-            set beresp.ttl = 120s;
+            set beresp.ttl = 10s;
             set beresp.grace = 0s;
             set beresp.keep = 0s;
             return (deliver);
