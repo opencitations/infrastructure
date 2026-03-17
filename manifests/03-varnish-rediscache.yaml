@@ -182,7 +182,7 @@ data:
     backend api {
         #.host = "oc-api-service.default.svc.cluster.local";
         .host = "redis-api-cache-service.default.svc.cluster.local";
-        .first_byte_timeout = 120s;
+        .first_byte_timeout = 240s;
         .between_bytes_timeout = 240s;
         .port = "80";
     }
