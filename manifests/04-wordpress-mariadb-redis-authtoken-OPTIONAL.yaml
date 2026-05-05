@@ -446,6 +446,18 @@ spec:
       - name: sparql-redirects
 
 ---
+
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: context-json-redirect
+spec:
+  redirectRegex:
+    regex: .*/ontology/context.jsonld
+    replacement: https://raw.githubusercontent.com/opencitations/metadata/refs/heads/master/context.json
+    permanent: true
+
+---
 apiVersion: v1
 kind: Service
 metadata:
@@ -482,6 +494,7 @@ spec:
         - name: download-redirect-cors
         - name: index-ldd-redirects-cors
         - name: meta-ldd-redirects-cors
+        - name: context-json-redirect
       services:
         - name: varnish-service
           port: 80
@@ -512,6 +525,7 @@ spec:
         - name: download-redirect-cors
         - name: index-ldd-redirects-cors
         - name: meta-ldd-redirects-cors
+        - name: context-json-redirect
       services:
         - name: varnish-service
           port: 80
