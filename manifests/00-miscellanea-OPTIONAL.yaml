@@ -114,6 +114,16 @@ subjects:
 
 
 #Script that transforms logs from traefik format to csv, and to prometheus format
+apiVersion: v1
+kind: Secret
+metadata:
+  name: statistics-secrets
+  namespace: default
+type: Opaque
+stringData:
+  ip-hash-salt: "${OC_STATISTICS_IP_HASH_SALT}"
+
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -157,7 +167,7 @@ spec:
               # Clone repository
               echo "Cloning repository..."
               cd /tmp
-              git clone --branch scripts-v2 --single-branch https://github.com/opencitations/oc_statistics.git
+              git clone --branch scripts-v3 --single-branch https://github.com/opencitations/oc_statistics.git
               cd oc_statistics
               
               # Install Python dependencies from repository
@@ -265,6 +275,15 @@ spec:
               value: "${NFS_LOG_PATH}"
             - name: PUBLIC_LOGS_DIR
               value: "${NFS_PUBLIC_LOGS_PATH}"
+            - name: IP_HASH_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: statistics-secrets
+                  key: ip-hash-salt
+            - name: SPARQL_ENDPOINT_INDEX
+              value: "${SPARQL_ENDPOINT_INDEX}"
+            - name: SPARQL_ENDPOINT_META
+              value: "${SPARQL_ENDPOINT_META}"
           
           volumes:
           - name: log-storage
