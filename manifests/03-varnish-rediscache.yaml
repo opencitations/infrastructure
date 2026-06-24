@@ -208,6 +208,13 @@ data:
         .port = "80";
     }
 
+    backend lode {
+        .host = "oc-lode-service.default.svc.cluster.local";
+        .first_byte_timeout = 30s;
+        .between_bytes_timeout = 240s;
+        .port = "80";
+    }
+
     sub rate_limit {
         # Check if host ends with opencitations.net
         if (req.http.host ~ "opencitations\.net$") {
@@ -302,6 +309,10 @@ data:
             if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff|html)$") {
                 return (pass);
             }
+        } elsif (req.http.host == "lode.opencitations.net") {
+            set req.backend_hint = lode;
+            return (pass);
+
         } elsif (req.http.host == "oci.opencitations.net") {
             set req.backend_hint = oci;
             if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff|html)$") {
@@ -503,7 +514,7 @@ data:
     # Deliver responses to client
     sub vcl_deliver {
         # Add CORS headers for API and SPARQL requests
-        if (req.http.host == "api.opencitations.net" || req.http.host == "sparql.opencitations.net" || req.http.host == "opencitations.net" || req.http.host == "oci.opencitations.net" || req.http.host == "ldd.opencitations.net") {
+        if (req.http.host == "api.opencitations.net" || req.http.host == "sparql.opencitations.net" || req.http.host == "lode.opencitations.net" || req.http.host == "opencitations.net" || req.http.host == "oci.opencitations.net" || req.http.host == "ldd.opencitations.net") {
             # Allow specific origins or all origins
             if (req.http.Origin) {
                 set resp.http.Access-Control-Allow-Origin = req.http.Origin;
