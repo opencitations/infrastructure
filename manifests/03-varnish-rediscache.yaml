@@ -160,15 +160,15 @@ data:
 
     backend sparql {
         .host = "oc-sparql-service.default.svc.cluster.local";
-        .first_byte_timeout = 900s;
-        .between_bytes_timeout = 900s;
+        .first_byte_timeout = 300s;
+        .between_bytes_timeout = 300s;
         .port = "80";
     }
 
     backend search {
         .host = "oc-search-service.default.svc.cluster.local";
         .first_byte_timeout = 60s;
-        .between_bytes_timeout = 240s;
+        .between_bytes_timeout = 200s;
         .port = "80";
     }
 
@@ -182,42 +182,49 @@ data:
     backend api {
         #.host = "oc-api-service.default.svc.cluster.local";
         .host = "redis-api-cache-service.default.svc.cluster.local";
-        .first_byte_timeout = 240s;
-        .between_bytes_timeout = 240s;
+        .first_byte_timeout = 200s;
+        .between_bytes_timeout = 200s;
         .port = "80";
     }
 
     backend ldd {
         .host = "oc-ldd-service.default.svc.cluster.local";
         .first_byte_timeout = 30s;
-        .between_bytes_timeout = 240s;
+        .between_bytes_timeout = 200s;
         .port = "80";
     }
 
     backend oci {
         .host = "oc-oci-service.default.svc.cluster.local";
         .first_byte_timeout = 30s;
-        .between_bytes_timeout = 240s;
+        .between_bytes_timeout = 200s;
         .port = "80";
     }
 
     backend statistics {
         .host = "oc-statistics-service.default.svc.cluster.local";
         .first_byte_timeout = 30s;
-        .between_bytes_timeout = 240s;
+        .between_bytes_timeout = 200s;
         .port = "80";
     }
 
     backend lode {
         .host = "oc-lode-service.default.svc.cluster.local";
         .first_byte_timeout = 30s;
-        .between_bytes_timeout = 240s;
+        .between_bytes_timeout = 200s;
         .port = "80";
     }
 
     sub rate_limit {
         # Check if host ends with opencitations.net
         if (req.http.host ~ "opencitations\.net$") {
+
+            if (req.http.Referer ~ "doi\.im") {
+                if (vsthrottle.is_denied("referer-doi-im", 50, 60s)) {
+                    return (synth(429, "Too Many Requests"));
+                }
+            }
+
             # Use real IP if available, otherwise fallback to client.ip
             if (req.http.X-Real-IP) {
                 # Skip rate limiting for whitelisted IPs
@@ -227,10 +234,6 @@ data:
                 # Apply rate limit using real IP
                 if (req.http.User-Agent !~ "StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
                     if (vsthrottle.is_denied(req.http.X-Real-IP, 180, 60s)) {
-                        # Add informative headers before blocking
-                        set req.http.X-Rate-Limit-Exceeded = "true";
-                        set req.http.X-Rate-Limit = "100";
-                        set req.http.X-Rate-Window = "60";
                         return (synth(429, "Too Many Requests"));
                     }
                 }
@@ -243,10 +246,6 @@ data:
                 # Apply global rate limit per IP
                 if (req.http.User-Agent !~ "StressTestScript/1.0 ${BOTKEY_STRESSTEST}") {
                     if (vsthrottle.is_denied(client.ip, 180, 60s)) {
-                        # Add informative headers before blocking
-                        set req.http.X-Rate-Limit-Exceeded = "true";
-                        set req.http.X-Rate-Limit = "100";
-                        set req.http.X-Rate-Window = "60";
                         return (synth(429, "Too Many Requests"));
                     }
                 }
@@ -276,8 +275,12 @@ data:
         
         # Handle real IP from upstream proxy (Traefik)
         if (req.http.X-Forwarded-For) {
-            # Get the first IP from X-Forwarded-For list (the real user IP)
-            set req.http.X-Real-IP = regsub(req.http.X-Forwarded-For, ",.*", "");
+            # Varnish appends the connecting peer (Traefik) as the LAST element,
+            # so the real client IP is the SECOND-TO-LAST element (appended by
+            # Traefik, not spoofable by the client unlike the first one).
+            # Single element (direct in-cluster request): regsub does not match
+            # and the value is kept as is.
+            set req.http.X-Real-IP = regsub(req.http.X-Forwarded-For, "^(.*,\s*)?([^, ]+)\s*,\s*[^,]+$", "\2");
             # Pass the real IP to the backend
             set req.http.X-Forwarded-For = req.http.X-Real-IP;
         }
@@ -556,6 +559,9 @@ data:
 
     # Handle synthetic errors
     sub vcl_synth {
+        # easter
+        set resp.http.Server = "Apache/2.4.10 (Win32)";
+
         # Health check endpoint response
         if (resp.status == 200 && req.url == "/varnish-health") {
             set resp.http.Content-Type = "text/plain";
@@ -585,7 +591,6 @@ data:
             set resp.http.Access-Control-Allow-Origin = "*";
             set resp.http.Access-Control-Allow-Methods = "GET, POST, HEAD, OPTIONS";
             set resp.http.Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin, DNT, User-Agent";
-            set resp.http.Server = "Apache/2.4.10 (Win32)";
             set resp.body = "410 Gone - The endpoint /index/v1/metadata has been deprecated and is no longer available. See https://api.opencitations.net/ for current API documentation.";
             return (deliver);
         }
@@ -595,6 +600,9 @@ data:
         if (resp.status == 429) {
             set resp.status = 429;
             set resp.reason = "Too Many Requests";
+            set resp.http.Retry-After = "60";
+            set resp.http.X-Rate-Limit = "80";
+            set resp.http.X-Rate-Window = "60";
             set resp.body = {"<!DOCTYPE html>
                             <html lang="en">
                             <head>
@@ -650,7 +658,7 @@ data:
                                     <div class="icon">&#9888;</div>
                                     <h1>API Rate Limit Exceeded</h1>
                                     <p>We're sorry, but you have exceeded the allowed number of API requests.</p>
-                                    <p>Our API is limited to 180 requests per minute for all users.</p>
+                                    <p>Our API is limited to 80 requests per minute for all users.</p>
                                     <p>Please wait a few seconds before making additional requests.</p>
                                     <a href="/" class="btn">Return to Homepage</a>
                                 </div>
@@ -658,7 +666,8 @@ data:
                             </html>"};
             return (deliver);
         } else {
-            synthetic("Too Many Requests");
+            synthetic(resp.reason);
+            return (deliver);
         }
     }
 
@@ -782,7 +791,7 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: url-decode-forwardslash
+  name: url-decode-apache
   namespace: default
 spec:
   replacePathRegex:
