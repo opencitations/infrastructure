@@ -1,3 +1,9 @@
+<!--
+SPDX-License-Identifier: ISC
+-->
+
+[<img src="https://img.shields.io/badge/powered%20by-OpenCitations-%239931FC?labelColor=2D22DE" />](http://opencitations.net)
+
 # OpenCitations Kubernetes Infrastructure
 
 This repository contains the Kubernetes manifests and deployment tools for deploying and managing OpenCitations services on a Kubernetes cluster. To begin working with this infrastructure, you'll need to either clone or fork this repository to your own GitHub account.
@@ -16,7 +22,7 @@ This repository contains the Kubernetes manifests and deployment tools for deplo
 
 Before beginning the deployment, you must prepare the OpenCitations databases:
 
-1. Download the Meta and Index databases from https://opencitations.net/download
+1. Download the Meta and Index databases from https://download.opencitations.net/
 2. Place these databases in your storage system that will be used by the infrastructure
 3. Make note of the storage paths as they will be needed in the configuration
 
