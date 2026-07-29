@@ -265,6 +265,12 @@ data:
 
     # Handle incoming requests
     sub vcl_recv {
+        # Retry after an empty cached page (see vcl_deliver): force a fresh
+        # fetch that replaces the poisoned object
+        if (req.http.X-Empty-Retry) {
+            set req.hash_always_miss = true;
+        }
+
         # Health check endpoint for Kubernetes probes
         if (req.url == "/varnish-health" && req.http.host == "varnish-health") {
             return (synth(200, "OK"));
@@ -552,6 +558,14 @@ data:
         # Keep X-Device header if present
         if (req.http.X-Device) {
             set resp.http.X-Device = req.http.X-Device;
+        }
+
+        # Never serve an empty page from cache (PHP white screen poisoning):
+        # refetch once, replacing the cached object. obj.hits > 0 restricts this
+        # to cached objects: passes (POST, wp-cron) must not be replayed.
+        if (obj.hits > 0 && resp.status == 200 && resp.http.Content-Length == "0" && !req.http.X-Empty-Retry) {
+            set req.http.X-Empty-Retry = "1";
+            return (restart);
         }
 
         return (deliver);
