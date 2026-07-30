@@ -22,7 +22,7 @@ This repository contains the Kubernetes manifests and deployment tools for deplo
 
 Before beginning the deployment, you must prepare the OpenCitations databases:
 
-1. Download the Meta and Index databases from https://download.opencitations.net/
+1. Download the Meta and Index databases from https://download.opencitations.net/, selecting the versions labeled "kubernetes ready"
 2. Place these databases in your storage system that will be used by the infrastructure
 3. Make note of the storage paths as they will be needed in the configuration
 
