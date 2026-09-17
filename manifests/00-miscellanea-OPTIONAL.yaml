@@ -167,7 +167,7 @@ spec:
               # Clone repository
               echo "Cloning repository..."
               cd /tmp
-              git clone --branch scripts-v3 --single-branch https://github.com/opencitations/oc_statistics.git
+              git clone --branch scripts-v4 --single-branch https://github.com/opencitations/oc_statistics.git
               cd oc_statistics
               
               # Install Python dependencies from repository
