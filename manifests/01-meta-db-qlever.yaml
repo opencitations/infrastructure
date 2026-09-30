@@ -1,0 +1,275 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: meta-db-qlever-1
+  namespace: default
+  labels:
+    app: meta-db-qlever
+    instance: meta-qlever-1
+spec:
+  serviceName: ${META_SERVICE_NAME}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meta-db-qlever
+      instance: meta-qlever-1
+  template:
+    metadata:
+      labels:
+        app: meta-db-qlever
+        instance: meta-qlever-1
+    spec:
+      containers:
+        - name: meta-qlever-server
+          image: adfreiburg/qlever@sha256:37d5ede193f1bffb6aebf734d15d2a4c2a3228ee102858b0c6c2e65c149a78ec
+          imagePullPolicy: IfNotPresent
+          command: ["/qlever/qlever-server"]
+          args:
+            - "--index-basename"
+            - "/index/oc_meta_data"
+            - "--port"
+            - "7011"
+            - "--memory-max-size"
+            - "40G"
+            - "--cache-max-size"
+            - "5G"
+            - "--default-query-timeout"
+            - "320s"
+            - "--num-simultaneous-queries"
+            - "24"
+            - "--no-access-check"
+          ports:
+            - containerPort: 7011
+              protocol: TCP
+              name: meta-qlever
+          readinessProbe:
+            httpGet:
+              path: /?query=ASK+%7B%7D
+              port: 7011
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7011
+            initialDelaySeconds: 240
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: ${META_CPU_REQUEST}
+              memory: ${META_MEMORY_REQUEST}
+            limits:
+              cpu: 5
+              memory: 48Gi
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - '-c'
+                  - echo 'Stopping QLever gracefully'; sleep 15
+          volumeMounts:
+            - mountPath: /index
+              name: meta-qlever-storage
+              subPath: ${META_DB_SUBPATH}
+      securityContext:
+        runAsGroup: 1000
+        runAsUser: 1000
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: meta-qlever-storage
+          persistentVolumeClaim:
+            claimName: ${STORAGE_PVC}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: meta-db-qlever-2
+  namespace: default
+  labels:
+    app: meta-db-qlever
+    instance: meta-qlever-2
+spec:
+  serviceName: ${META_SERVICE_NAME}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meta-db-qlever
+      instance: meta-qlever-2
+  template:
+    metadata:
+      labels:
+        app: meta-db-qlever
+        instance: meta-qlever-2
+    spec:
+      containers:
+        - name: meta-qlever-server
+          image: adfreiburg/qlever@sha256:37d5ede193f1bffb6aebf734d15d2a4c2a3228ee102858b0c6c2e65c149a78ec
+          imagePullPolicy: IfNotPresent
+          command: ["/qlever/qlever-server"]
+          args:
+            - "--index-basename"
+            - "/index/oc_meta_data"
+            - "--port"
+            - "7011"
+            - "--memory-max-size"
+            - "40G"
+            - "--cache-max-size"
+            - "5G"
+            - "--default-query-timeout"
+            - "320s"
+            - "--num-simultaneous-queries"
+            - "24"
+            - "--no-access-check"
+          ports:
+            - containerPort: 7011
+              protocol: TCP
+              name: meta-qlever
+          readinessProbe:
+            httpGet:
+              path: /?query=ASK+%7B%7D
+              port: 7011
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7011
+            initialDelaySeconds: 240
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: ${META_CPU_REQUEST}
+              memory: ${META_MEMORY_REQUEST}
+            limits:
+              cpu: 5
+              memory: 48Gi
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - '-c'
+                  - echo 'Stopping QLever gracefully'; sleep 15
+          volumeMounts:
+            - mountPath: /index
+              name: meta-qlever-storage
+              subPath: ${META_DB_SUBPATH_2}
+      securityContext:
+        runAsGroup: 1000
+        runAsUser: 1000
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: meta-qlever-storage
+          persistentVolumeClaim:
+            claimName: ${STORAGE_PVC}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: meta-db-qlever-3
+  namespace: default
+  labels:
+    app: meta-db-qlever
+    instance: meta-qlever-3
+spec:
+  serviceName: ${META_SERVICE_NAME}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meta-db-qlever
+      instance: meta-qlever-3
+  template:
+    metadata:
+      labels:
+        app: meta-db-qlever
+        instance: meta-qlever-3
+    spec:
+      containers:
+        - name: meta-qlever-server
+          image: adfreiburg/qlever@sha256:37d5ede193f1bffb6aebf734d15d2a4c2a3228ee102858b0c6c2e65c149a78ec
+          imagePullPolicy: IfNotPresent
+          command: ["/qlever/qlever-server"]
+          args:
+            - "--index-basename"
+            - "/index/oc_meta_data"
+            - "--port"
+            - "7011"
+            - "--memory-max-size"
+            - "40G"
+            - "--cache-max-size"
+            - "5G"
+            - "--default-query-timeout"
+            - "320s"
+            - "--num-simultaneous-queries"
+            - "24"
+            - "--no-access-check"
+          ports:
+            - containerPort: 7011
+              protocol: TCP
+              name: meta-qlever
+          readinessProbe:
+            httpGet:
+              path: /?query=ASK+%7B%7D
+              port: 7011
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: 7011
+            initialDelaySeconds: 240
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: ${META_CPU_REQUEST}
+              memory: ${META_MEMORY_REQUEST}
+            limits:
+              cpu: 5
+              memory: 48Gi
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - '-c'
+                  - echo 'Stopping QLever gracefully'; sleep 15
+          volumeMounts:
+            - mountPath: /index
+              name: meta-qlever-storage
+              subPath: ${META_DB_SUBPATH_3}
+      securityContext:
+        runAsGroup: 1000
+        runAsUser: 1000
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: meta-qlever-storage
+          persistentVolumeClaim:
+            claimName: ${STORAGE_PVC}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${META_SERVICE_NAME}
+  namespace: default
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 7011
+      targetPort: 7011
+      protocol: TCP
+      name: meta-qlever
+  selector:
+    app: meta-db-qlever

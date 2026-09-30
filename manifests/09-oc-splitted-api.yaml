@@ -51,12 +51,6 @@ spec:
               value: '${REDIS_DB}'
             - name: META_HOST
               value: ${META_SERVICE_NAME}
-            - name: META_PORT
-              value: '1111'
-            - name: META_USER
-              value: ${META_USER}
-            - name: META_PASSWORD
-              value: ${META_DBA_PASSWORD}
           resources:
             limits:
               cpu: "2"
