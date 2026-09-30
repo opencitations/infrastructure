@@ -1,21 +1,115 @@
 # oc-api Redis Cache Proxy
 
-Redis-backed cache between Varnish and `oc-api-service`. Keeps API responses warm across Varnish restarts. Restart the pod to clear the cache on new database releases.
+Warm cache between Varnish and `oc-api-service`, deployed with `manifests/03-varnish-rediscache.yaml`.
 
-Only caches `/index/v1/*`, `/index/v2/*`, `/meta/v1/*` GET 200 responses. Everything else passes through.
+Varnish keeps its cache in memory (`malloc`): every restart empties it and all API traffic hits `oc-api` until the cache warms up again. Since database releases happen about every 4 months, API responses stay valid for the whole release cycle. The Redis API cache keeps them warm across Varnish restarts.
+
+It runs as a single pod with two containers sharing `localhost`:
+
+- `redis` — `redis:8.10.2-alpine`, ephemeral (no RDB/AOF), `allkeys-lru`, `maxmemory 16gb`
+- `proxy` — `opencitations/redis-api-cache-proxy` (Python, aiohttp), port 8888, exposed as `redis-api-cache-service:80`
+
+## Integration
+
+- Varnish `api` backend (`manifests/03-varnish-rediscache.yaml`) points to `redis-api-cache-service.default.svc.cluster.local`.
+- The proxy forwards to `oc-api-service` (`BACKEND_HOST`).
+
+To disable the cache, point the Varnish `api` backend back to `oc-api-service.default.svc.cluster.local`.
+
+## What gets cached
+
+- Only paths matching `^/(index/v[12]|meta/v1|skg-if/v1)/.+` (`API_PATH_PATTERN` in `proxy.py`). Documentation pages and everything else pass through.
+- Only `GET` responses with status `200` and a body up to 50 MB (`MAX_BODY_CACHE`). `HEAD` is answered from the `GET` entry when present.
+- Requests with `preview=true` in the query string are never cached.
+- Key: SHA-256 of `path?query|accept:<Accept header>`, prefixed `apicache:v2:`. Different formats (JSON, CSV, ...) get separate entries; the `Authorization` token is not part of the key.
+- Entry: a Redis hash `{status, headers, body, cached_at}` with the body stored as raw bytes. TTL: 120 days (`CACHE_TTL`).
+
+## Resilience
+
+If Redis is down or restarting, the proxy keeps working as a plain pass-through to `oc-api` (one immediate retry, no backoff, so no added latency). For this reason:
+
+- `/healthz` always returns `200` and only reports the Redis state in the body.
+- The `redis` container has a liveness probe but **no readiness probe**, so a Redis restart does not remove the pod from the Service.
+
+## Build and release
+
+Create a folder with the `Dockerfile` and `proxy.py` from the [Source files](#source-files) section below, then:
+
+```bash
+# From Apple Silicon, --platform is required for the amd64 cluster nodes
+docker buildx build --platform linux/amd64 \
+  -t opencitations/redis-api-cache-proxy:<version> --push .
+```
+
+Then set `REDIS_API_CACHE_VERSION=<version>` in `.env` (one line only) and deploy `manifests/03-varnish-rediscache.yaml`. The pod is recreated, so the cache starts empty.
+
+## Environment variables (proxy)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_HOST` | `127.0.0.1` | Redis address (sidecar) |
+| `REDIS_PORT` | `6379` | Redis port |
+| `BACKEND_HOST` | `oc-api-service.default.svc.cluster.local` | Backend |
+| `BACKEND_PORT` | `80` | Backend port |
+| `LISTEN_PORT` | `8888` | Proxy port |
+| `CACHE_TTL` | `10368000` | Entry TTL in seconds (120 days) |
+| `MAX_BODY_CACHE` | `52428800` | Max cacheable body size in bytes (50 MB) |
+| `LOG_LEVEL` | `INFO` | Log verbosity |
+
+## Response headers
+
+| `X-Cache` (Varnish) | `X-Redis-Cache` (proxy) | Meaning |
+|---------------------|-------------------------|---------|
+| `HIT` | *(absent)* | Served by Varnish |
+| `MISS` | `HIT` | Varnish miss, served by Redis |
+| `MISS` | `MISS` | Both missed, served by `oc-api` and stored |
+| `MISS` | *(absent)* | Not cacheable (path, method, preview) |
+
+## Operations
+
+```bash
+kubectl exec deploy/redis-api-cache -c redis -- redis-cli dbsize        # cached entries
+kubectl exec deploy/redis-api-cache -c redis -- redis-cli info memory   # memory usage
+kubectl exec deploy/redis-api-cache -c redis -- redis-cli flushall      # flush without restart
+kubectl logs -f deploy/redis-api-cache -c proxy                         # proxy logs
+```
+
+## New database release checklist
+
+API responses are cached in two layers (Varnish 60 days, Redis 120 days). After switching to a new database release, clear them **in this order**, otherwise Varnish refills from the old Redis entries:
+
+```bash
+# 1. Redis: restart the pod (ephemeral cache)
+kubectl rollout restart deploy/redis-api-cache
+kubectl rollout status deploy/redis-api-cache
+
+# 2. Varnish: ban the API entries on every replica
+for p in $(kubectl get pods -l app=varnish -o name); do
+  kubectl exec $p -- varnishadm 'ban req.http.host == "api.opencitations.net" && req.url ~ "^/(index/v[12]|meta/v1|skg-if/v1)/"'
+done
+```
+
+oc_db_kyoo needs no action, unless the database backends themselves changed (names, number of replicas, port).
 
 ## Source files
+
+Current image version: `1.1.0` (Python 3.14, aiohttp 3.14.3, redis-py 8.1.0).
 
 ### Dockerfile
 
 ```dockerfile
-FROM python:3.12-slim
+FROM python:3.14-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir "aiohttp>=3.10,<4" "redis>=5.0,<6"
+RUN pip install --no-cache-dir "aiohttp==3.14.3" "redis==8.1.0"
 
 COPY proxy.py .
+
+USER nobody
 
 EXPOSE 8888
 
@@ -46,6 +140,8 @@ import time
 import aiohttp
 from aiohttp import web
 import redis.asyncio as aioredis
+from redis.asyncio.retry import Retry
+from redis.backoff import NoBackoff
 
 # ---------------------------------------------------------------------------
 # Configuration (from environment variables)
@@ -60,8 +156,12 @@ MAX_BODY_CACHE = int(os.getenv("MAX_BODY_CACHE", str(50 * 1024 * 1024)))  # 50 M
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # Only cache actual API data endpoints, not documentation pages
-# Matches: /index/v1/<id>, /index/v2/<id>, /meta/v1/<id>
-API_PATH_PATTERN = re.compile(r"^/(index/v[12]|meta/v1)/.+")
+# Matches: /index/v1/<id>, /index/v2/<id>, /meta/v1/<id>, /skg-if/v1/<id>
+API_PATH_PATTERN = re.compile(r"^/(index/v[12]|meta/v1|skg-if/v1)/.+")
+
+# Cache entries are Redis hashes {status, headers, body, cached_at}.
+# The "v2" prefix keeps them apart from the old JSON-string entries.
+CACHE_KEY_PREFIX = "apicache:v2:"
 
 # Headers to preserve in cache (lowercase)
 CACHEABLE_HEADERS = {
@@ -107,7 +207,7 @@ def make_cache_key(path: str, query: str, accept: str) -> str:
         raw += f"?{query}"
     if accept:
         raw += f"|accept:{accept.lower().strip()}"
-    return "apicache:" + hashlib.sha256(raw.encode()).hexdigest()
+    return CACHE_KEY_PREFIX + hashlib.sha256(raw.encode()).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +226,9 @@ class CacheProxy:
             decode_responses=False,
             socket_connect_timeout=5,
             socket_timeout=10,
-            retry_on_timeout=True,
+            # One immediate retry only: redis-py's default (3 retries with backoff)
+            # adds seconds of latency to every request while Redis is down.
+            retry=Retry(NoBackoff(), 1),
         )
         connector = aiohttp.TCPConnector(
             limit=100,
@@ -147,17 +249,21 @@ class CacheProxy:
         if self.http_session:
             await self.http_session.close()
         if self.redis:
-            await self.redis.close()
+            await self.redis.aclose()
         logger.info("Cache proxy stopped")
 
     async def health(self, request: web.Request) -> web.Response:
-        """Health check endpoint for Kubernetes probes."""
+        """
+        Kubernetes probe. Always 200 while the proxy is running: without Redis
+        the proxy keeps working as a plain pass-through to oc-api, so a Redis
+        outage must not take the API offline. Redis state is reported in the body.
+        """
         try:
             await self.redis.ping()
             return web.Response(text="OK", status=200)
         except Exception as e:
-            logger.error("Health check failed: %s", e)
-            return web.Response(text="Redis unavailable", status=503)
+            logger.warning("Redis unavailable, running as pass-through: %s", e)
+            return web.Response(text="OK (redis unavailable, pass-through)", status=200)
 
     async def handle(self, request: web.Request) -> web.Response:
         """Main request handler with Redis cache lookup."""
@@ -183,31 +289,26 @@ class CacheProxy:
 
         # ---- Try Redis cache ----
         try:
-            cached = await self.redis.get(cache_key)
+            cached = await self.redis.hgetall(cache_key)
         except Exception as e:
-            logger.warning("Redis GET failed: %s", e)
+            logger.warning("Redis HGETALL failed: %s", e)
             cached = None
 
         if cached:
             # Cache HIT
             try:
-                entry = json.loads(cached)
-                headers = entry.get("headers", {})
+                status = int(cached[b"status"])
+                headers = json.loads(cached[b"headers"])
                 headers["X-Redis-Cache"] = "HIT"
 
                 # HEAD responses: return headers only, no body
                 if method == "HEAD":
-                    return web.Response(
-                        status=entry["status"],
-                        headers=headers,
-                    )
+                    return web.Response(status=status, headers=headers)
 
                 return web.Response(
-                    status=entry["status"],
-                    body=entry["body"].encode("utf-8"),
-                    headers=headers,
+                    status=status, body=cached[b"body"], headers=headers
                 )
-            except (json.JSONDecodeError, KeyError) as e:
+            except (KeyError, ValueError) as e:
                 logger.warning("Corrupted cache entry: %s", e)
                 # Fall through to backend
 
@@ -243,7 +344,6 @@ class CacheProxy:
                     for name, value in backend_resp.headers.items():
                         if name.lower() in CACHEABLE_HEADERS:
                             resp_headers[name] = value
-                    resp_headers["X-Redis-Cache"] = "MISS"
                 else:
                     for name, value in backend_resp.headers.items():
                         # Skip hop-by-hop headers that shouldn't be forwarded
@@ -252,26 +352,30 @@ class CacheProxy:
                         ):
                             resp_headers[name] = value
 
-                # Cache only successful GET responses within size limit
+                # Cache only successful GET responses within size limit.
+                # The body is stored as raw bytes: no JSON escaping overhead,
+                # no corruption of non UTF-8 payloads.
                 if (
                     cache_key
                     and status == 200
                     and request.method == "GET"
                     and len(body) <= MAX_BODY_CACHE
                 ):
-                    entry = json.dumps({
-                        "status": status,
-                        "body": body.decode("utf-8", errors="replace"),
-                        "headers": {
-                            k: v for k, v in resp_headers.items()
-                            if k != "X-Redis-Cache"
-                        },
-                        "cached_at": int(time.time()),
-                    })
                     try:
-                        await self.redis.set(cache_key, entry, ex=CACHE_TTL)
+                        async with self.redis.pipeline(transaction=True) as pipe:
+                            pipe.hset(cache_key, mapping={
+                                "status": status,
+                                "headers": json.dumps(resp_headers),
+                                "body": body,
+                                "cached_at": int(time.time()),
+                            })
+                            pipe.expire(cache_key, CACHE_TTL)
+                            await pipe.execute()
                     except Exception as e:
                         logger.warning("Redis SET failed: %s", e)
+
+                if cache_key:
+                    resp_headers["X-Redis-Cache"] = "MISS"
 
                 return web.Response(
                     status=status, body=body, headers=resp_headers
@@ -301,34 +405,3 @@ def create_app() -> web.Application:
 if __name__ == "__main__":
     web.run_app(create_app(), host="0.0.0.0", port=LISTEN_PORT)
 ```
-
-## Build
-
-```bash
-# From ARM (Apple Silicon)
-docker buildx build --platform linux/amd64 -t opencitations/redis-api-cache-proxy:<version> --push .
-
-# From amd64
-docker build -t opencitations/redis-api-cache-proxy:<version> .
-docker push opencitations/redis-api-cache-proxy:<version>
-```
-
-Update `REDIS_API_CACHE_VERSION` in `.env`, then:
-
-```bash
-kubectl apply -f manifests/03-varnish.yaml
-kubectl rollout restart deployment/redis-api-cache
-```
-
-## Environment variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REDIS_HOST` | `127.0.0.1` | Redis address |
-| `REDIS_PORT` | `6379` | Redis port |
-| `BACKEND_HOST` | `oc-api-service.default.svc.cluster.local` | Backend |
-| `BACKEND_PORT` | `80` | Backend port |
-| `LISTEN_PORT` | `8888` | Proxy listen port |
-| `CACHE_TTL` | `10368000` | TTL in seconds (120 days) |
-| `MAX_BODY_CACHE` | `52428800` | Max response size (50 MB) |
-| `LOG_LEVEL` | `INFO` | Log verbosity |

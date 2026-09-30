@@ -1,0 +1,239 @@
+# =============================================================================
+# oc_db_kyoo — request queue / concurrency limiter / circuit breaker in front of
+# the QLever databases. Used ONLY by oc-api.
+#
+# Source:  https://github.com/opencitations/oc_db_kyoo
+# Deploy:  python3.11 ./deploy.py add-on/oc_db_kyoo/oc-db-kyoo.yaml
+# Docs:    add-on/oc_db_kyoo/README.md
+#
+# Required .env variables: DB_KYOO_VERSION, INDEX_SERVICE_NAME
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-db-kyoo-qleverindex
+  namespace: default
+  labels:
+    app: oc-db-kyoo-qleverindex
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oc-db-kyoo-qleverindex
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: oc-db-kyoo-qleverindex
+    spec:
+      containers:
+        - name: oc-db-kyoo-qleverindex
+          image: opencitations/oc_db_kyoo:${DB_KYOO_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: "info"
+            - name: MAX_CONCURRENT_PER_BACKEND
+              value: "20"
+            - name: MAX_QUEUE_PER_BACKEND
+              value: "250"
+            - name: QUEUE_TIMEOUT
+              value: "180"
+            - name: BACKEND_TIMEOUT
+              value: "330"   # must exceed QLever --default-query-timeout (320s): kyoo counts its own timeouts as backend failures (circuit breaker)
+            - name: CIRCUIT_BREAKER_THRESHOLD
+              value: "3"
+            - name: CIRCUIT_BREAKER_RECOVERY_TIME
+              value: "15"
+            - name: HEALTH_CHECK_INTERVAL
+              value: "10"
+            - name: HEALTH_CHECK_TIMEOUT
+              value: "5"
+            - name: HEALTH_CHECK_QUERY
+              value: "PREFIX cito: <http://purl.org/spar/cito/> ASK { ?citation cito:hasCitedEntity <https://w3id.org/oc/meta/br/062501777134> . }"
+            - name: BACKEND_0_NAME
+              value: "index-1"
+            - name: BACKEND_0_HOST
+              value: "index-db-qlever-1-0.${INDEX_SERVICE_NAME}.default.svc.cluster.local"
+            - name: BACKEND_0_PORT
+              value: "7011"
+            - name: BACKEND_0_PATH
+              value: "/"
+            - name: BACKEND_1_NAME
+              value: "index-2"
+            - name: BACKEND_1_HOST
+              value: "index-db-qlever-2-0.${INDEX_SERVICE_NAME}.default.svc.cluster.local"
+            - name: BACKEND_1_PORT
+              value: "7011"
+            - name: BACKEND_1_PATH
+              value: "/"
+          # Probe /ready, not /health: /health returns 503 when all backends are busy (see src/health.py)
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 2
+              memory: 4Gi
+            limits:
+              cpu: 3
+              memory: 8Gi
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oc-db-kyoo-qleverindex-service
+  namespace: default
+  labels:
+    app: oc-db-kyoo-qleverindex
+spec:
+  selector:
+    app: oc-db-kyoo-qleverindex
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oc-db-kyoo-qlevermeta
+  namespace: default
+  labels:
+    app: oc-db-kyoo-qlevermeta
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oc-db-kyoo-qlevermeta
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: oc-db-kyoo-qlevermeta
+    spec:
+      containers:
+        - name: oc-db-kyoo-qlevermeta
+          image: opencitations/oc_db_kyoo:${DB_KYOO_VERSION}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: "info"
+            - name: MAX_CONCURRENT_PER_BACKEND
+              value: "20"
+            - name: MAX_QUEUE_PER_BACKEND
+              value: "250"
+            - name: QUEUE_TIMEOUT
+              value: "180"
+            - name: BACKEND_TIMEOUT
+              value: "330"   # must exceed QLever --default-query-timeout (320s): kyoo counts its own timeouts as backend failures (circuit breaker)
+            - name: CIRCUIT_BREAKER_THRESHOLD
+              value: "3"
+            - name: CIRCUIT_BREAKER_RECOVERY_TIME
+              value: "15"
+            - name: HEALTH_CHECK_INTERVAL
+              value: "10"
+            - name: HEALTH_CHECK_TIMEOUT
+              value: "5"
+            - name: HEALTH_CHECK_QUERY
+              value: "ASK { <https://w3id.org/oc/meta/br/062501777134> ?p ?o }"
+            - name: BACKEND_0_NAME
+              value: "meta-1"
+            - name: BACKEND_0_HOST
+              value: "meta-db-qlever-1-0.meta-qlever-service.default.svc.cluster.local"
+            - name: BACKEND_0_PORT
+              value: "7011"
+            - name: BACKEND_0_PATH
+              value: "/"
+            - name: BACKEND_1_NAME
+              value: "meta-2"
+            - name: BACKEND_1_HOST
+              value: "meta-db-qlever-2-0.meta-qlever-service.default.svc.cluster.local"
+            - name: BACKEND_1_PORT
+              value: "7011"
+            - name: BACKEND_1_PATH
+              value: "/"
+            - name: BACKEND_2_NAME
+              value: "meta-3"
+            - name: BACKEND_2_HOST
+              value: "meta-db-qlever-3-0.meta-qlever-service.default.svc.cluster.local"
+            - name: BACKEND_2_PORT
+              value: "7011"
+            - name: BACKEND_2_PATH
+              value: "/"
+          # Probe /ready, not /health: /health returns 503 when all backends are busy (see src/health.py)
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 2
+              memory: 4Gi
+            limits:
+              cpu: 3
+              memory: 8Gi
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oc-db-kyoo-qlevermeta-service
+  namespace: default
+  labels:
+    app: oc-db-kyoo-qlevermeta
+spec:
+  selector:
+    app: oc-db-kyoo-qlevermeta
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP

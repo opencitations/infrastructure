@@ -28,7 +28,7 @@ spec:
       containers:
         # ---- Redis (sidecar) ----
         - name: redis
-          image: redis:7.4-alpine
+          image: redis:8.10.2-alpine 
           args:
             - redis-server
             - "--maxmemory"
@@ -403,7 +403,7 @@ data:
         }
         
         # For API calls, ignore User-Agent and X-Device
-        if (req.url ~ "/meta/v1/" || req.url ~ "/index/v1/" || req.url ~ "/index/v2/") {
+        if (req.url ~ "/meta/v1/" || req.url ~ "/index/v1/" || req.url ~ "/index/v2/"  || req.url ~ "/skg-if/v1/") {
             unset req.http.User-Agent;
             unset req.http.X-Device;
         }
@@ -423,7 +423,7 @@ data:
         hash_data(req.url);
         hash_data(req.http.host);
         
-        if (!(req.url ~ "/meta/v1/" || req.url ~ "/index/v1/" || req.url ~ "/index/v2/")) {
+        if (!(req.url ~ "/meta/v1/" || req.url ~ "/index/v1/" || req.url ~ "/index/v2/" || req.url ~ "/skg-if/v1/")) {
             hash_data(req.http.X-Device);
         }
         
@@ -479,7 +479,7 @@ data:
         } elseif (bereq.url ~ "\.(html|woff|woff2|ttf|eot|json)$") {
             set beresp.ttl = 10d;  # Other static files for 10 days
             set beresp.grace = 7d; 
-        } elseif (bereq.url ~ "/meta/v1/" || bereq.url ~ "/index/v1/" || bereq.url ~ "/index/v2/") {
+        } elseif (bereq.url ~ "/meta/v1/" || bereq.url ~ "/index/v1/" || bereq.url ~ "/index/v2/" || bereq.url ~ "/skg-if/v1/") {
             set beresp.ttl = 60d;  # API for 60 days
             set beresp.grace = 7d;
         } else {
