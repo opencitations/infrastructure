@@ -26,7 +26,7 @@ spec:
           command:
             - bash
             - '-c'
-            - 'ServerMain -i oc_index -j 12 -p 7011 -m 96G -c 45G -e 5G -k 500 -s 320s 2>&1'
+            - 'ServerMain -i oc_index -j 12 -p 7011 -m 96G -c 35G -e 5G -k 10000 -s 320s --no-access-check --no-metrics-log --no-resource-usage-log 2>&1'
           ports:
             - containerPort: 7011
               protocol: TCP
@@ -102,7 +102,7 @@ spec:
           command:
             - bash
             - '-c'
-            - 'ServerMain -i oc_index -j 10 -p 7011 -m 90G -c 40G -e 5G -k 300 -s 320s 2>&1'
+            - 'ServerMain -i oc_index -j 12 -p 7011 -m 90G -c 35G -e 5G -k 10000 -s 320s  --no-access-check --no-metrics-log --no-resource-usage-log 2>&1'
           ports:
             - containerPort: 7011
               protocol: TCP
