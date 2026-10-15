@@ -20,11 +20,26 @@ This repository contains the Kubernetes manifests and deployment tools for deplo
 
 ### 1. Database Preparation
 
+The infrastructure relies on three QLever databases:
+
+| Database | Content | Manifest |
+|----------|---------|----------|
+| Meta | Bibliographic metadata | `manifests/01-meta-db-qlever.yaml` |
+| Index | Citation data | `manifests/02-index-db-qlever.yaml` |
+| Provenance | Provenance of the data stored in Meta (used by HERITRACE) | `manifests/03-provenance-db.yaml` |
+
 Before beginning the deployment, you must prepare the OpenCitations databases:
 
-1. Download the Meta and Index databases from https://download.opencitations.net/, selecting the versions labeled "kubernetes ready"
-2. Place these databases in your storage system that will be used by the infrastructure
+1. Download the Meta, Index and Provenance databases from https://download.opencitations.net/, selecting the versions labeled "kubernetes ready"
+2. Place these databases in your storage system that will be used by the infrastructure (or on the external host, if the provenance database runs outside the cluster)
 3. Make note of the storage paths as they will be needed in the configuration
+
+#### Provenance database
+
+The provenance database can run outside or inside the cluster. It is served at `https://sparql.opencitations.net/prov` through Varnish (`prov` backend in `manifests/04-varnish-rediscache.yaml`).
+
+- **Outside the cluster** (default): set `PROV_ENDPOINT_IP` and `PROV_ENDPOINT_PORT` in `.env`. `03-provenance-db.yaml` creates the `oc-prov-service` Service pointing to that address. The cluster nodes must be able to reach it (routing, NAT, firewall).
+- **Inside the cluster**: replace `03-provenance-db.yaml` with your own QLever Deployment and Service. Keep the Service name `oc-prov-service` on port 80, so the Varnish configuration does not need changes.
 
 ### 2. Environment Configuration
 
@@ -77,9 +92,9 @@ Important considerations:
 
 ### 7. WordPress Configuration (OPTIONAL)
 
-The OpenCitations infrastructure currently features a showcase website developed on WordPress. To set up a showcase site using this same technological approach, uncomment the 03 and 04 YAML sections and update the WordPress configuration parameters specified in the .env file.
+The OpenCitations infrastructure currently features a showcase website developed on WordPress. To set up a showcase site using this same technological approach, uncomment the 05 and 14 YAML sections and update the WordPress configuration parameters specified in the .env file.
 
-The infrastructure includes an automated backup system for WordPress using rclone and pCloud storage (YAML 04). The system performs daily backups of:
+The infrastructure includes an automated backup system for WordPress using rclone and pCloud storage (YAML 14). The system performs daily backups of:
 - WordPress database (SQL dump)
 - WordPress files
 - MariaDB raw data
@@ -158,8 +173,6 @@ python3.11 ./deploy.py -f    # Create Fleet-ready production files
 python3.11 ./deploy.py       # Deploy all services
 python3.11 ./deploy.py <manifests/0x-manifest.yaml>  # Deploy a specific manifest file
 ```
-
-#### Initialize Infrastructure
 
 #### Initialize Infrastructure
 
