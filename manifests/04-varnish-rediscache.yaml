@@ -215,6 +215,13 @@ data:
         .port = "80";
     }
 
+    backend prov {
+        .host = "oc-prov-service.default.svc.cluster.local";
+        .first_byte_timeout = 300s;
+        .between_bytes_timeout = 300s;
+        .port = "80";
+    }
+
     sub rate_limit {
         # Check if host ends with opencitations.net
         if (req.http.host ~ "opencitations\.net$") {
@@ -303,6 +310,11 @@ data:
 
         # Route requests to the correct backend
         if (req.http.host == "sparql.opencitations.net") {
+            if (req.url ~ "^/prov(/|\?|$)") {
+                set req.backend_hint = prov;
+                set req.url = regsub(req.url, "^/prov/?", "/");
+                return (pass);
+            }
             set req.backend_hint = sparql;
             # Allow caching for static resources only
             if (req.url !~ "\.(css|js|png|gif|jpeg|jpg|ico|woff2|woff)$") {
