@@ -21,11 +21,11 @@ You can find these files on this GitHub Repo -> https://github.com/opencitations
 |------|---------|
 | `oc_auth_service/app/main.py` | FastAPI auth service |
 | `oc_auth_service/Dockerfile` | Docker image |
-| `04-wordpress-mariadb-redis-authtoken-OPTIONAL.yaml` | Deployment + ForwardAuth middleware + IngressRoute override |
+| `05-wordpress-mariadb-redis-authtoken-OPTIONAL.yaml` | Deployment + ForwardAuth middleware + IngressRoute override |
 
 ## Deploy
 
-**Important:** `04-wordpress-mariadb-redis-authtoken-OPTIONAL.yaml` overwrites the `oc-api` (inside the file `09-oc-splitted-api.yaml`) IngressRoute to add ForwardAuth.
+**Important:** `05-wordpress-mariadb-redis-authtoken-OPTIONAL.yaml` overwrites the `oc-api` (inside the file `09-oc-splitted-api.yaml`) IngressRoute to add ForwardAuth.
 
 ## Verify
 

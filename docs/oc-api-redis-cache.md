@@ -1,6 +1,6 @@
 # oc-api Redis Cache Proxy
 
-Warm cache between Varnish and `oc-api-service`, deployed with `manifests/03-varnish-rediscache.yaml`.
+Warm cache between Varnish and `oc-api-service`, deployed with `manifests/04-varnish-rediscache.yaml`.
 
 Varnish keeps its cache in memory (`malloc`): every restart empties it and all API traffic hits `oc-api` until the cache warms up again. Since database releases happen about every 4 months, API responses stay valid for the whole release cycle. The Redis API cache keeps them warm across Varnish restarts.
 
@@ -11,7 +11,7 @@ It runs as a single pod with two containers sharing `localhost`:
 
 ## Integration
 
-- Varnish `api` backend (`manifests/03-varnish-rediscache.yaml`) points to `redis-api-cache-service.default.svc.cluster.local`.
+- Varnish `api` backend (`manifests/04-varnish-rediscache.yaml`) points to `redis-api-cache-service.default.svc.cluster.local`.
 - The proxy forwards to `oc-api-service` (`BACKEND_HOST`).
 
 To disable the cache, point the Varnish `api` backend back to `oc-api-service.default.svc.cluster.local`.
@@ -41,7 +41,7 @@ docker buildx build --platform linux/amd64 \
   -t opencitations/redis-api-cache-proxy:<version> --push .
 ```
 
-Then set `REDIS_API_CACHE_VERSION=<version>` in `.env` (one line only) and deploy `manifests/03-varnish-rediscache.yaml`. The pod is recreated, so the cache starts empty.
+Then set `REDIS_API_CACHE_VERSION=<version>` in `.env` (one line only) and deploy `manifests/04-varnish-rediscache.yaml`. The pod is recreated, so the cache starts empty.
 
 ## Environment variables (proxy)
 

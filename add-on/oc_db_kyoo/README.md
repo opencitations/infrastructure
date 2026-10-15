@@ -9,7 +9,7 @@ Client ─► Traefik ─► Varnish ─► redis-api-cache ─► oc-api ─►
                                                                            QLever meta
 ```
 
-Varnish and the Redis API cache are part of `manifests/03-varnish-rediscache.yaml` (see `docs/oc-api-redis-cache.md`).
+Varnish and the Redis API cache are part of `manifests/04-varnish-rediscache.yaml` (see `docs/oc-api-redis-cache.md`).
 
 This folder is not picked up by `./deploy.py` (all manifests) or `./deploy.py -f` (Fleet): the manifest is applied explicitly, as shown below.
 
