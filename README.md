@@ -26,7 +26,7 @@ The infrastructure relies on three QLever databases:
 |----------|---------|----------|
 | Meta | Bibliographic metadata | `manifests/01-meta-db-qlever.yaml` |
 | Index | Citation data | `manifests/02-index-db-qlever.yaml` |
-| Provenance | Provenance of the data stored in Meta (used by HERITRACE) | `manifests/03-provenance-db.yaml` |
+| Provenance | Provenance of the data stored in Meta | `manifests/03-provenance-db.yaml` |
 
 Before beginning the deployment, you must prepare the OpenCitations databases:
 
