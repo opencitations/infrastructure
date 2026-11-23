@@ -272,6 +272,9 @@ data:
 
     # Handle incoming requests
     sub vcl_recv {
+        # Internal marker (see vcl_backend_response): never accept it from clients
+        unset req.http.X-Fetch-Buffered;
+
         # Retry after an empty cached page (see vcl_deliver): force a fresh
         # fetch that replaces the poisoned object
         if (req.http.X-Empty-Retry) {
@@ -306,7 +309,9 @@ data:
         }
 
         # Apply rate limiting
-        call rate_limit;
+        if (req.url !~ "^/static/" && req.url != "/favicon.ico") {
+            call rate_limit;
+        }
 
         # Route requests to the correct backend
         if (req.http.host == "sparql.opencitations.net") {
@@ -444,6 +449,23 @@ data:
 
     # Handle backend responses
     sub vcl_backend_response {
+        # Second attempt after a fetch that failed mid-body (see
+        # vcl_backend_error): bypass the cache storage and do not cache this
+        # URL for 120s.
+        if (bereq.retries > 0 && bereq.http.X-Fetch-Buffered) {
+            set beresp.do_stream = false;
+            return (pass(120s));
+        }
+
+        # Never deliver a truncated 200: fetch cacheable objects completely
+        # before replying, so a fetch failing mid-body (cache storage full,
+        # backend closing early) ends in vcl_backend_error instead of reaching
+        # the client. Passes (POST, SPARQL, downloads) keep streaming.
+        if (!bereq.uncacheable) {
+            set beresp.do_stream = false;
+            set bereq.http.X-Fetch-Buffered = "1";
+        }
+
         # Do not cache 429
         if (beresp.status == 429) {
             set beresp.uncacheable = true;
@@ -509,6 +531,13 @@ data:
 
     # Handle backend errors
     sub vcl_backend_error {
+        # Buffered fetch failed after the response headers: retry once,
+        # uncached (see vcl_backend_response). Failures before the headers
+        # (timeouts, connection errors) and passes are not retried.
+        if (bereq.http.X-Fetch-Buffered && bereq.retries == 0) {
+            return (retry);
+        }
+
         set beresp.http.Content-Type = "text/html; charset=utf-8";
         set beresp.http.Retry-After = "5";
         synthetic({"<!DOCTYPE html>
